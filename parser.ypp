@@ -1,0 +1,508 @@
+
+%{
+	/*C user declerations*/
+	#include "source.h"
+	#include "hw3_output.hpp"
+	#include <iostream>
+	#include <stack> 
+	#include <map> 
+	#include <vector>
+	#include <string>
+	#include "symbol_table.h"
+	#define YYDEBUG 1 
+	using namespace std;
+	using namespace compi3;
+	int yylex();
+	extern int yylineno;
+    SymbolTable sm;
+	int isLoop;
+	vector<string> func_args;
+	string funcRet;
+	string funcId;
+	int func_arg_offset;
+	int offset;
+	bool isRetEnum;
+	void yyerror(const char*);
+	void endSScope();
+
+
+
+
+%}
+
+
+
+%left    VOID
+%left    INT
+%left    BYTE
+%left    B
+%left    BOOL
+
+%left    WHILE  
+%left    SC
+%left    COMMA
+
+%left    LBRACE
+%left    RBRACE
+%right    ASSIGN
+%left    BINOP
+%token    ID NUM TRUE FALSE STRING CONTINUE BREAK RETURN
+%left    OR
+%left    AND
+%left	 EQUAL
+%nonassoc    RELOP
+%left    PLUS
+%left    MULT
+%right    NOT
+%left    RPAREN
+%left    LPAREN
+%left    ENUM
+%left NO_ELSE
+%left    ELSE
+%left    IF
+
+
+
+%%
+
+Program		: Enums Funcs {}
+			;
+
+Funcs   	: /*epsilon*/ {}
+			| FuncDec Funcs {}
+			;
+
+FuncDec 	: RetType ID LPAREN {
+                    if(sm.is_symbol_defined($2.str)){
+                        output::errorDef(yylineno,$2.str);
+                        exit(1);
+                    }
+                    funcId = $2.str;
+                    func_arg_offset = -1;
+                    offset = 0;
+                    sm.open_scope();
+                } formals RPAREN LBRACE {
+                    funcRet = $1.type;
+                    func_args = *$5.argTypes;
+  				} Statements RBRACE {
+                    offset -= sm.close_scope();
+                    vector<string> args = *$5.argTypes;
+                    sm.define_func_symbol($2.str,$1.str,false,args);
+                    delete $5.argTypes;
+                    funcId="";
+			}
+			;
+
+Enums 		: /*epsilon*/ {}
+			| EnumDecl Enums {}
+			;
+
+EnumDecl	: ENUM ID LBRACE EnumeratorList RBRACE SC {
+				if(sm.is_symbol_defined($2.str) || $2.str==funcId){
+					output::errorDef(yylineno,$2.str);
+					delete $4.argTypes;
+					exit(1);
+				}
+				vector<string> args = *($4.argTypes);
+				string error = sm.define_enum_symbol($2.str,args);
+				if(error!=""){
+					output::errorDef(yylineno,error);
+					delete $4.argTypes;
+					exit(1);
+				}
+				delete $4.argTypes;
+				}
+			;
+
+RetType     : Type {$$ = $1;}
+			| VOID {$$.type = "VOID";}
+			;
+
+formals   	: /*epsilon*/ {
+				$$.argTypes = new vector<string>;
+				}
+			| FormalsList {
+				$$=$1;
+				}
+			;
+
+FormalsList : FormalDecl {
+				$$.argTypes = new vector<string>;
+				$$.argTypes->push_back($1.type);
+				}
+			| FormalDecl COMMA FormalsList {
+				$$.argTypes = new vector<string>;
+				$$.argTypes->push_back($1.type);
+				$$.argTypes->insert($$.argTypes->end(),$3.argTypes->begin(),$3.argTypes->end());
+				delete $3.argTypes;
+				}
+			;
+
+FormalDecl  : Type ID {
+				if(sm.is_symbol_defined($2.str ) || $2.str==funcId){
+					output::errorDef(yylineno,$2.str);
+					exit(1);
+				}
+				$$.str = $2.str;
+				$$.type = $1.type;
+				$$.isEnum = false;
+				sm.define_symbol($$.str,$$.type,$$.isEnum,func_arg_offset--);
+			}
+			| EnumType ID {
+				delete $1.argTypes;
+				if(sm.is_symbol_defined($2.str) || $2.str==funcId){
+					output::errorDef(yylineno,$2.str);
+					exit(1);
+				}
+				$$.str = $2.str;
+				$$.type = $1.type;
+				$$.isEnum = true;
+				sm.define_symbol($$.str,$$.type,$$.isEnum,func_arg_offset--);
+			}
+			;
+
+EnumeratorList  : Enumerator {
+					$$.argTypes = new vector<string>;
+					$$.argTypes->push_back($1.str);
+					}
+				| EnumeratorList COMMA Enumerator {
+					$$.argTypes = new vector<string>;
+					$$.argTypes->insert($$.argTypes->end(),$1.argTypes->begin(),$1.argTypes->end());
+					$$.argTypes->push_back($3.str);
+					delete $1.argTypes;
+					}
+				;
+
+Enumerator 	: ID	{
+				if(sm.is_symbol_defined($1.str) || $1.str==funcId){
+					output::errorDef(yylineno,$1.str);
+					exit(1);
+				}
+				} 
+			;
+
+Statements  : Statement {}
+			| Statements Statement {}
+			;
+
+
+
+Call 		: ID LPAREN ExpList RPAREN {
+				if((!sm.is_symbol_defined($1.str) ||  sm.get_var_type($1.str).find("->") == string::npos) && funcId!=$1.str){
+					output::errorUndefFunc(yylineno,$1.str);
+					delete $3.argTypes;
+					exit(1);
+				}
+				vector<string> args = funcId!=$1.str?sm.get_func_args($1.str):func_args;
+				vector<string> args2 = *($3.argTypes);
+				for(auto i = args.begin(), j = args2.begin();i!=args.end()&&j!=args2.end();i++,j++){
+					if(*i!=*j && !(*i=="INT" && *j=="BYTE")){
+						output::errorPrototypeMismatch(yylineno,$1.str,args);
+						delete $3.argTypes;
+						exit(1);
+					}
+				}
+				if(args2.size() != args.size()){
+					output::errorPrototypeMismatch(yylineno,$1.str,args);
+					delete $3.argTypes;
+					exit(1);
+				}
+				$$.type = funcId!=$1.str?sm.get_func_ret($1.str):funcRet;;
+				delete $3.argTypes;
+				$$.lineno = yylineno;
+				}
+			| ID LPAREN RPAREN {
+				if((!sm.is_symbol_defined($1.str) ||  sm.get_var_type($1.str).find("->") == string::npos) && funcId!=$1.str){
+					output::errorUndefFunc(yylineno,$1.str);
+					exit(1);
+				}
+				vector<string> args = funcId!=$1.str?sm.get_func_args($1.str):func_args;
+				if(!args.empty()){
+					output::errorPrototypeMismatch(yylineno,$1.str,args);
+					exit(1);
+				}
+				$$.type = funcId!=$1.str?sm.get_func_ret($1.str):funcRet;
+				$$.isEnum = sm.is_enum($1.str);
+				$$.lineno = yylineno;
+			}
+			;
+
+ExpList     : Exp {
+				$$.argTypes = new vector<string>;
+				$$.argTypes->push_back($1.type);
+			}
+			| Exp COMMA ExpList {
+			$$.argTypes = new vector<string>;
+			$$.argTypes->push_back($1.type);
+			$$.argTypes->insert($$.argTypes->end(),$3.argTypes->begin(),$3.argTypes->end());
+			delete $3.argTypes;
+			}
+			;
+
+
+
+EnumType    : ENUM ID {
+				$$.argTypes = new vector<string>;
+				if(!sm.is_symbol_defined($2.str) || !sm.is_enum_type($2.str)){
+					output::errorUndefEnum(yylineno,$2.str);
+					exit(1);
+				}
+				vector<string> values = sm.get_enum_values($2.str);
+				$$.argTypes->insert($$.argTypes->begin(),values.begin(),values.end());
+				$$.type= "enum " + $2.str;
+				$$.isEnum = true;
+				}
+			;
+
+Exp         : NUM {
+				$$.type = "INT";
+				$$.lineno = yylineno;
+				}
+ 			| LPAREN Exp RPAREN	{$$.type = $2.type; $$.lineno = $2.lineno;}
+			| ID {
+				if(!sm.is_symbol_defined($1.str) || sm.get_var_type($1.str)=="enum" || sm.get_var_type($1.str).find("->") != string::npos){
+					output::errorUndef(yylineno, $1.str);
+					exit(1);
+				}
+				$$.type = sm.get_var_type($1.str);
+				$$.isEnum = sm.is_enum($1.str);
+				$$.lineno = yylineno;
+			}
+			| Exp PLUS Exp {
+					if(!($1.type=="INT" || $1.type=="BYTE")||!($3.type=="INT" || $3.type=="BYTE")){
+						output::errorMismatch(yylineno);
+						exit(1);
+					}
+					$$.type=($1.type=="INT" || $3.type=="INT")?"INT":"BYTE";
+					$$.lineno = $1.lineno;
+				}
+			| Call {
+					$$ = $1;
+				}
+			| Exp MULT Exp {
+					if(!($1.type=="INT" || $1.type=="BYTE")||!($3.type=="INT" || $3.type=="BYTE")){
+						output::errorMismatch(yylineno);
+						exit(1);
+					}
+					$$.type=($1.type=="INT" || $3.type=="INT")?"INT":"BYTE";
+					$$.lineno = $1.lineno;
+				}
+			| LPAREN Type RPAREN Exp {
+					if(!($2.type == "INT" && $4.isEnum == true)){
+						output::errorMismatch(yylineno);
+						exit(1);
+					}
+					$$.type = "INT";
+					$$.lineno = $4.lineno;
+				}
+			| NUM B {
+			    if(stoi($1.str) > 255){
+                    output::errorByteTooLarge(yylineno, $1.str);
+                    exit(1);
+			    }
+                $$.type = "BYTE";
+                $$.lineno = yylineno;
+			}
+			| STRING {$$.type = "STRING"; $$.lineno = yylineno;}
+			| TRUE {$$.type = "BOOL"; $$.lineno = yylineno;}
+			| FALSE {$$.type = "BOOL"; $$.lineno = yylineno;}
+			| NOT Exp {
+				if($2.type != "BOOL" ){
+						output::errorMismatch(yylineno);
+						exit(1);
+					}
+				$$.type = "BOOL";
+				$$.lineno = $2.lineno;
+			}
+			| Exp AND Exp {
+				if($1.type != "BOOL" || $3.type !="BOOL" ){
+						output::errorMismatch(yylineno);
+						exit(1);
+					}
+				$$.type = "BOOL";
+				$$.lineno = $1.lineno;
+			}
+			| Exp OR Exp {
+				if($1.type != "BOOL" || $3.type !="BOOL" ){
+						output::errorMismatch(yylineno);
+						exit(1);
+					}
+				$$.type = "BOOL";
+				$$.lineno = $1.lineno;
+				}
+			| Exp RELOP Exp {
+				if(!($1.type=="INT" || $1.type=="BYTE")||!($3.type=="INT" || $3.type=="BYTE")){
+						output::errorMismatch(yylineno);
+						exit(1);
+					}
+				$$.type = "BOOL";
+				$$.lineno = $1.lineno;
+			}
+			| Exp EQUAL Exp {
+				if(!($1.type=="INT" || $1.type=="BYTE")||!($3.type=="INT" || $3.type=="BYTE")){
+						output::errorMismatch(yylineno);
+						exit(1);
+					}
+				$$.type = "BOOL";
+				$$.lineno = $1.lineno;
+				}
+			;
+
+Statement   : LBRACE {sm.open_scope();} Statements RBRACE {
+				offset -= sm.close_scope();
+				}
+			| Type ID SC {
+				if(sm.is_symbol_defined($2.str) || $2.str==funcId ){
+					output::errorDef(yylineno,$2.str);
+					exit(1);
+				}
+				sm.define_symbol($2.str,$1.type,false,offset++);
+			}
+			| EnumType ID SC {
+				if(sm.is_symbol_defined($2.str) || $2.str==funcId){
+					output::errorDef(yylineno,$2.str);
+					exit(1);
+				}
+				sm.define_symbol($2.str,$1.type,true,offset++);
+				} 
+			| EnumDecl {}
+			| Type ID ASSIGN Exp SC {
+				if(sm.is_symbol_defined($2.str) || $2.str==funcId ){
+					output::errorDef(yylineno,$2.str);
+					exit(1);
+				}
+				if($1.type != $4.type && !($1.type== "INT" && $4.type == "BYTE")){
+					output::errorMismatch(yylineno);
+					
+					exit(1);
+				}	
+				sm.define_symbol($2.str,$1.type,false,offset++); 
+			}
+			| EnumType ID ASSIGN Exp SC {
+				if(sm.is_symbol_defined($2.str) || $2.str==funcId) {
+					output::errorDef(yylineno,$2.str);
+					delete $1.argTypes;
+					exit(1);
+				}
+				if($1.type != $4.type){
+					output::errorUndefEnumValue(yylineno,$2.str);
+					delete $1.argTypes;
+					exit(1);
+				}	
+					sm.define_symbol($2.str,$1.type,true,offset++);
+					delete $1.argTypes;
+				}
+			| ID ASSIGN Exp SC {
+				if(!sm.is_symbol_defined($1.str) || sm.get_var_type($1.str).find("->") != string::npos || sm.get_var_type($1.str)=="enum"){
+					output::errorUndef(yylineno,$1.str);
+					exit(1);
+				}
+				string type = sm.get_var_type($1.str);
+				bool isEnum = sm.is_enum($1.str);
+				if(isEnum==true && type != $3.type){
+					output::errorUndefEnumValue(yylineno,$1.str);
+					exit(1);
+				}
+				if(type != $3.type && !(type== "INT" && $3.type == "BYTE")){
+					output::errorMismatch(yylineno);
+					exit(1);
+				}	
+				
+				} //check legal
+			| Call SC {}
+			| RETURN SC {
+				if(funcRet!="VOID"){
+					output::errorMismatch(yylineno);
+					exit(1);
+				}
+			}
+			| RETURN Exp SC {
+				if(funcRet == "VOID" || (funcRet!=$2.type && !(funcRet=="INT" && ($2.type=="BYTE" || $2.isEnum == true)))){
+					output::errorMismatch($2.lineno);
+					exit(1);
+				}
+			}
+			| IF LPAREN Exp RPAREN Subrotine Statement  {
+				if($3.type!="BOOL"){
+					output::errorMismatch($3.lineno);
+					exit(1);
+				}
+				offset -= sm.close_scope();
+				}  
+			| IF LPAREN Exp RPAREN Subrotine Statement ELSE {
+			        if($3.type!="BOOL"){
+                        output::errorMismatch($3.lineno);
+                        exit(1);
+                    }
+                    offset -= sm.close_scope();
+                    sm.open_scope();
+                } Statement {
+                    offset -= sm.close_scope();
+                }
+			| WHILE LPAREN Exp RPAREN {
+			    if($3.type!="BOOL"){
+                    output::errorMismatch($3.lineno);
+                    exit(1);
+                }
+				sm.open_scope();
+				isLoop++;
+				} Statement {
+				offset -= sm.close_scope();
+				isLoop--;
+				} 
+			| BREAK SC {
+				if(isLoop==0){
+					output::errorUnexpectedBreak(yylineno);
+					exit(1);
+				}
+			}
+			| CONTINUE SC {
+				if(isLoop==0){
+					output::errorUnexpectedContinue(yylineno);
+					exit(1);
+				}
+			}
+			;
+
+Type 		: INT {$$.type = "INT";}
+			| BYTE {$$.type = "BYTE";}
+			| BOOL {$$.type = "BOOL";}
+			;
+
+Subrotine	: /* empty */ {sm.open_scope();};			
+
+%%
+
+/*C user routines*/
+
+void yyerror(const char*) { 
+	output::errorSyn(yylineno);
+	exit(1);  
+}
+
+bool invalid_main(SymbolTable sm) {
+    string main_ret_value = sm.get_func_ret("main");
+    vector<string> main_args = sm.get_func_args("main");
+
+    return !(main_ret_value == "VOID" && main_args.empty());
+}
+
+int main() {
+	//yydebug = 1; 
+	isLoop = 0;
+	sm = SymbolTable();
+	sm.open_scope();
+	vector<string> print_args;
+	print_args.push_back("STRING");
+	sm.define_func_symbol("print","VOID",false,print_args);
+	vector<string> printi_args;
+	printi_args.push_back("INT");
+	sm.define_func_symbol("printi","VOID",false,printi_args);
+	yyparse();
+	if(invalid_main(sm)){
+		output::errorMainMissing();
+		exit(1);
+	}
+	offset -= sm.close_scope();
+}
+
