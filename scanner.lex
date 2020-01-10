@@ -41,10 +41,10 @@ continue        {yylval.str = "CONTINUE";return CONTINUE;}
 "{"             {yylval.str = "LBRACE";return LBRACE;}
 "}"             {yylval.str = "RBRACE";return RBRACE;}
 =               {yylval.str = "ASSIGN";return ASSIGN;}
-(<)|>|<=|>=       {yylval.str = "RELOP";return RELOP;}
-==|!=           {yylval.str = "EQUAL";return EQUAL;}
-[\+\-]   		{yylval.str = "PLUS";return PLUS;}
-[\*\/]			{yylval.str = "MULT";return MULT;}
+(<)|>|<=|>=       {yylval.str = strdup(yytext); return RELOP;}
+==|!=           {yylval.str = strdup(yytext); return EQUAL;}
+[\+\-]   		{yylval.str = strdup(yytext); return PLUS;}
+[\*\/]			{yylval.str = strdup(yytext); return MULT;}
 
 
 \/\/.*          {};
