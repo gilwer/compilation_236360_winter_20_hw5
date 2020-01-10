@@ -29,7 +29,7 @@
 	string freshVar();
 	void createZeroDivisionLabel();
 	const string ZeroDivisionLabel = "zero_division_label";
-	CodeBuffer cb;
+
 
 
 
@@ -287,9 +287,9 @@ Exp         : NUM {
 					$$.type=($1.type=="INT" || $3.type=="INT")?"INT":"BYTE";
 					$$.lineno = $1.lineno;
 					if($2.str == "\+"){
-						sb.emit($$.str + " = add i32 " + $1.str + ", " + $2.str); //need to assert legalety for int-byte operration
+						CodeBuffer::instance().emit($$.str + " = add i32 " + $1.str + ", " + $2.str); //need to assert legalety for int-byte operration
 					} else {
-						sb.emit($$.str + " = sub i32 " + $1.str + ", " + $2.str); //need to assert legalety for int-byte operration
+						CodeBuffer::instance().emit($$.str + " = sub i32 " + $1.str + ", " + $2.str); //need to assert legalety for int-byte operration
 					}
 					if($$.type=="BYTE"){
 						//truncation of result
@@ -307,10 +307,10 @@ Exp         : NUM {
 					$$.lineno = $1.lineno;
 					$$.str = freshVar();
 					if($2.str == "\*"){
-						sb.emit($$.str + " = mul i32 " + $1.str + ", " + $2.str); //need to assert legalety for int-byte operration
+						CodeBuffer::instance().emit($$.str + " = mul i32 " + $1.str + ", " + $2.str); //need to assert legalety for int-byte operration
 					} else {
 						//emit code to handle zero division
-						sb.emit($$.str + " = sdiv i32 " + $1.str + ", " + $2.str); //need to assert legalety for int-byte operration
+						CodeBuffer::instance().emit($$.str + " = sdiv i32 " + $1.str + ", " + $2.str); //need to assert legalety for int-byte operration
 					}
 					if($$.type=="BYTE"){
 						//truncation of result
@@ -536,7 +536,7 @@ bool invalid_main(SymbolTable sm) {
 
 int main() {
 	//yydebug = 1; 
-	cb = CodeBuffer();
+	
 	isLoop = 0;
 	sm = SymbolTable();
 	sm.open_scope();
@@ -552,10 +552,11 @@ int main() {
 		exit(1);
 	}
 	offset -= sm.close_scope();
+	CodeBuffer::instance().printCodeBuffer();
 }
 
 string freshVar(){
-	retrun "\%temp"+to_string(++currentVar);
+	return "\%temp"+to_string(++currentVar);
 }
 
 void zeroDivisionLabel(){
