@@ -13,6 +13,7 @@ typedef struct
 	bool isEnum = false;
 	int val;
 	vector<string>* argTypes;
+	vector<string>* args;
 	int lineno;
 } expAttribute;
 

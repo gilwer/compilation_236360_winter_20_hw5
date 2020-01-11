@@ -41,6 +41,8 @@ namespace compi3 {
 
         bool define_func_arg(string symbol, string type, bool is_enum,int offset);
 
+        list<Symbol> get_current_symbols();
+
     private:
         int _calc_current_offset() {
             auto current_scope = symbols_stack.top();
@@ -166,6 +168,10 @@ namespace compi3 {
         auto curr_symbol = symbols_map[symbol];
         res = curr_symbol.get_type();
         return res;
+    }
+
+    list<Symbol> SymbolTable::get_current_symbols(){
+        return symbols_stack.top();
     }
 }
 

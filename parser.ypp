@@ -8,16 +8,18 @@
 	#include <stack> 
 	#include <map> 
 	#include <vector>
+	#include <numeric>
 	#include <string>
 	#include "symbol_table.h"
 	#define YYDEBUG 1 
+	#define CB CodeBuffer::instance()
 	using namespace std;
 	using namespace compi3;
 	int yylex();
 	extern int yylineno;
     SymbolTable sm;
 	int isLoop;
-	vector<string> func_args;
+	vector<string> func_arg_types;
 	string funcRet;
 	string funcId;
 	int func_arg_offset;
@@ -29,6 +31,11 @@
 	string freshVar();
 	void createZeroDivisionLabel();
 	const string ZeroDivisionLabel = "zero_division_label";
+ 	string arglist(int size);
+ 	string callList(vector<string> list);
+ 	bool manual_return = false;
+ 	void emitPrintFuncs();
+ 	string accumulateHelper(string a,string b);
 
 
 
@@ -88,13 +95,25 @@ FuncDec 	: RetType ID LPAREN {
                     sm.open_scope();
                 } formals RPAREN LBRACE {
                     funcRet = $1.type;
-                    func_args = *$5.argTypes;
+                    func_arg_types = *$5.argTypes;
+                    string type =$1.type=="VOID"?"void":"i32";
+                    string args = arglist(func_arg_types.size());
+                    CB.emit("define "+type+" @"+$2.str+"(" + args +") {");
+
   				} Statements RBRACE {
+  					if(!manual_return){
+                    	CB.emit("ret void");
+                    }
+                    CB.emit("ret void"); //need to make a return lable and jump all returns to it
+                    CB.emit("}");
+                    manual_return = false;
                     offset -= sm.close_scope();
                     vector<string> args = *$5.argTypes;
                     sm.define_func_symbol($2.str,$1.str,false,args);
                     delete $5.argTypes;
                     funcId="";
+
+
 			}
 			;
 
@@ -198,30 +217,44 @@ Call 		: ID LPAREN ExpList RPAREN {
 					delete $3.argTypes;
 					exit(1);
 				}
-				vector<string> args = funcId!=$1.str?sm.get_func_args($1.str):func_args;
-				vector<string> args2 = *($3.argTypes);
-				for(auto i = args.begin(), j = args2.begin();i!=args.end()&&j!=args2.end();i++,j++){
+				vector<string> argTypes1 = funcId!=$1.str?sm.get_func_args($1.str):func_arg_types;
+				vector<string> argTypes2 = *($3.argTypes);
+				for(auto i = argTypes1.begin(), j = argTypes2.begin();i!=argTypes1.end()&&j!=argTypes2.end();i++,j++){
 					if(*i!=*j && !(*i=="INT" && *j=="BYTE")){
-						output::errorPrototypeMismatch(yylineno,$1.str,args);
+						output::errorPrototypeMismatch(yylineno,$1.str,argTypes1);
 						delete $3.argTypes;
 						exit(1);
 					}
 				}
-				if(args2.size() != args.size()){
-					output::errorPrototypeMismatch(yylineno,$1.str,args);
+				if(argTypes2.size() != argTypes1.size()){
+					output::errorPrototypeMismatch(yylineno,$1.str,argTypes1);
 					delete $3.argTypes;
 					exit(1);
 				}
 				$$.type = funcId!=$1.str?sm.get_func_ret($1.str):funcRet;;
 				delete $3.argTypes;
 				$$.lineno = yylineno;
+				string type = "void";
+				string ret = "";
+				if($$.type!="VOID"){
+					$$.str = freshVar();
+					type = "i32";
+					ret = $$.str + " = ";
+				}
+				if($1.str != "print"){
+					CB.emit(ret + "call "+ type + " @"+$1.str + "(" + callList(*($3.args)) + ")");
+				} else {
+					//call print
+				}
+				
+				delete $3.args;
 				}
 			| ID LPAREN RPAREN {
 				if((!sm.is_symbol_defined($1.str) ||  sm.get_var_type($1.str).find("->") == string::npos) && funcId!=$1.str){
 					output::errorUndefFunc(yylineno,$1.str);
 					exit(1);
 				}
-				vector<string> args = funcId!=$1.str?sm.get_func_args($1.str):func_args;
+				vector<string> args = funcId!=$1.str?sm.get_func_args($1.str):func_arg_types;
 				if(!args.empty()){
 					output::errorPrototypeMismatch(yylineno,$1.str,args);
 					exit(1);
@@ -229,18 +262,32 @@ Call 		: ID LPAREN ExpList RPAREN {
 				$$.type = funcId!=$1.str?sm.get_func_ret($1.str):funcRet;
 				$$.isEnum = sm.is_enum($1.str);
 				$$.lineno = yylineno;
+				string type = "void";
+				string ret = "";
+				if($$.type!="VOID"){
+					$$.str = freshVar();
+					type = "i32";
+					ret = $$.str + " = ";
+				}
+				CB.emit(ret + "call "+ type + " @"+$1.str + "()");
 			}
 			;
 
 ExpList     : Exp {
 				$$.argTypes = new vector<string>;
 				$$.argTypes->push_back($1.type);
+				$$.args = new vector<string>;
+				$$.args->push_back($1.str);
 			}
 			| Exp COMMA ExpList {
 			$$.argTypes = new vector<string>;
 			$$.argTypes->push_back($1.type);
 			$$.argTypes->insert($$.argTypes->end(),$3.argTypes->begin(),$3.argTypes->end());
 			delete $3.argTypes;
+			$$.args = new vector<string>;
+			$$.args->push_back($1.str);
+			$$.args->insert($$.args->end(),$3.args->begin(),$3.args->end());
+			delete $3.args;
 			}
 			;
 
@@ -262,12 +309,13 @@ EnumType    : ENUM ID {
 Exp         : NUM {
 				$$.type = "INT";
 				$$.lineno = yylineno;
-				$$.str = $1.str;
+				$$.str = freshVar();
+				CB.emit($$.str + " = add i32 0, " + $1.str );
 				}
  			| LPAREN Exp RPAREN	{
  				$$.type = $2.type;
  			 	$$.lineno = $2.lineno;
- 			 	$$.str = $2.str;
+ 			 	$$.str =  $2.str;
  			 	}
 			| ID {
 				if(!sm.is_symbol_defined($1.str) || sm.get_var_type($1.str)=="enum" || sm.get_var_type($1.str).find("->") != string::npos){
@@ -277,7 +325,9 @@ Exp         : NUM {
 				$$.type = sm.get_var_type($1.str);
 				$$.isEnum = sm.is_enum($1.str);
 				$$.lineno = yylineno;
-				$$.str = $1.str;
+				$$.str = freshVar();
+				CB.emit($$.str+ " = load i32, i32* %var"+$1.str);
+				
 			}
 			| Exp PLUS Exp {
 					if(!($1.type=="INT" || $1.type=="BYTE")||!($3.type=="INT" || $3.type=="BYTE")){
@@ -286,10 +336,11 @@ Exp         : NUM {
 					}
 					$$.type=($1.type=="INT" || $3.type=="INT")?"INT":"BYTE";
 					$$.lineno = $1.lineno;
-					if($2.str == "\+"){
-						CodeBuffer::instance().emit($$.str + " = add i32 " + $1.str + ", " + $2.str); //need to assert legalety for int-byte operration
+					$$.str = freshVar();
+					if($2.str == "+"){
+						CB.emit($$.str + " = add i32 " + $1.str + ", " + $3.str); //need to assert legalety for int-byte operration
 					} else {
-						CodeBuffer::instance().emit($$.str + " = sub i32 " + $1.str + ", " + $2.str); //need to assert legalety for int-byte operration
+						CB.emit($$.str + " = sub i32 " + $1.str + ", " + $3.str); //need to assert legalety for int-byte operration
 					}
 					if($$.type=="BYTE"){
 						//truncation of result
@@ -306,11 +357,11 @@ Exp         : NUM {
 					$$.type=($1.type=="INT" || $3.type=="INT")?"INT":"BYTE";
 					$$.lineno = $1.lineno;
 					$$.str = freshVar();
-					if($2.str == "\*"){
-						CodeBuffer::instance().emit($$.str + " = mul i32 " + $1.str + ", " + $2.str); //need to assert legalety for int-byte operration
+					if($2.str == "*"){
+						CB.emit($$.str + " = mul i32 " + $1.str + ", " + $3.str); //need to assert legalety for int-byte operration
 					} else {
 						//emit code to handle zero division
-						CodeBuffer::instance().emit($$.str + " = sdiv i32 " + $1.str + ", " + $2.str); //need to assert legalety for int-byte operration
+						CB.emit($$.str + " = sdiv i32 " + $1.str + ", " + $3.str); //need to assert legalety for int-byte operration
 					}
 					if($$.type=="BYTE"){
 						//truncation of result
@@ -331,7 +382,9 @@ Exp         : NUM {
 			    }
                 $$.type = "BYTE";
                 $$.lineno = yylineno;
-                $$.str = $1.str;
+                $$.str = freshVar();
+				CB.emit($$.str + " = add i32 0, " + $1.str );
+				//parse byte
 			}
 			| STRING {
 				$$.type = "STRING";
@@ -454,20 +507,27 @@ Statement   : LBRACE {sm.open_scope();} Statements RBRACE {
 					output::errorMismatch(yylineno);
 					exit(1);
 				}	
-				
-				} //check legal
+				CB.emit("store i32 "+ $3.str + ", i32* %var" + $1.str);
+				} 
 			| Call SC {}
 			| RETURN SC {
 				if(funcRet!="VOID"){
 					output::errorMismatch(yylineno);
 					exit(1);
 				}
+				manual_return = true;
+				CB.emit("red void");
 			}
 			| RETURN Exp SC {
 				if(funcRet == "VOID" || (funcRet!=$2.type && !(funcRet=="INT" && ($2.type=="BYTE" || $2.isEnum == true)))){
 					output::errorMismatch($2.lineno);
 					exit(1);
 				}
+				manual_return = true;
+				if(funcRet == "VOID" || funcRet == "BYTE" ){
+					//parse result
+				}
+				CB.emit("ret " + $2.str);
 			}
 			| IF LPAREN Exp RPAREN Subrotine Statement  {
 				if($3.type!="BOOL"){
@@ -546,19 +606,67 @@ int main() {
 	vector<string> printi_args;
 	printi_args.push_back("INT");
 	sm.define_func_symbol("printi","VOID",false,printi_args);
+	emitPrintFuncs();
+	createZeroDivisionLabel();
 	yyparse();
 	if(invalid_main(sm)){
 		output::errorMainMissing();
 		exit(1);
 	}
 	offset -= sm.close_scope();
-	CodeBuffer::instance().printCodeBuffer();
+	CB.printGlobalBuffer();
+	CB.printCodeBuffer();
 }
 
 string freshVar(){
 	return "\%temp"+to_string(++currentVar);
 }
 
-void zeroDivisionLabel(){
+void createZeroDivisionLabel(){
 	//create zero division lable
+}
+
+string arglist(int size){
+	string lst = "";
+		for(int i=0;i<size-1;i++){
+		lst+= "i32 %" + to_string(i) + ", ";
+		}
+		return size>0?lst + "i32 %" +to_string(size-1):"";
+	}
+
+string callList(vector<string> list){
+	for(int i =0;i<list.size();i++){
+		list[i]= "i32 " + list[i];
+	}
+	return accumulate(list.begin()+1,list.end(),*list.begin(),accumulateHelper);
+}
+
+string accumulateHelper(string a,string b){
+	return a + ", " + b;
+}
+
+void allocateStackVars(){
+	//need to call this func at the end of every scope but make sure the code is placed at the begining of the scope maybe branch and label maybe backpatching
+	for(Symbol symbol: sm.get_current_symbols()){
+		CB.emit("%var" + symbol.get_symbol_name()+ " = alloca i32" );
+		if (symbol.get_symbol_offset()<0){
+			CB.emit("store i32 %"+ to_string(-1*(symbol.get_symbol_offset()+1)) + ", i32* %var" + symbol.get_symbol_name());
+		}
+	}
+}
+
+void emitPrintFuncs(){
+	CB.emit("declare i32 @printf(i8*, ...)");
+	CB.emit("declare void @exit(i32)");
+	CB.emitGlobal("@.str_specifier = constant [4 x i8] c\"%s\\0A\\00\"");
+	CB.emitGlobal("@.int_specifier = constant [4 x i8] c\"%d\\0A\\00\"");
+	CB.emit("define void @printi(i32) {");
+	CB.emit("call i32 (i8*, ...) @printf(i8* getelementptr ([4 x i8], [4 x i8]* @.int_specifier, i32 0, i32 0), i32 %0)");
+	CB.emit("ret void");
+	CB.emit("}");
+	CB.emit("define void @print(i8*) {");
+	CB.emit("call i32 (i8*, ...) @printf(i8* getelementptr ([4 x i8], [4 x i8]* @.str_specifier, i32 0, i32 0), i8* %0)");
+	CB.emit("ret void");
+	CB.emit("}");
+
 }
