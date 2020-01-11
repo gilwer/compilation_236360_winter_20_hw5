@@ -31,11 +31,13 @@
 	string freshVar();
 	void createZeroDivisionLabel();
 	const string ZeroDivisionLabel = "zero_division_label";
+	const string zero_error = "Error division by zero";
  	string arglist(int size);
  	string callList(vector<string> list);
  	bool manual_return = false;
  	void emitPrintFuncs();
  	string accumulateHelper(string a,string b);
+ 	void allocateStackVars();
 
 
 
@@ -99,12 +101,26 @@ FuncDec 	: RetType ID LPAREN {
                     string type =$1.type=="VOID"?"void":"i32";
                     string args = arglist(func_arg_types.size());
                     CB.emit("define "+type+" @"+$2.str+"(" + args +") {");
-
-  				} Statements RBRACE {
-  					if(!manual_return){
-                    	CB.emit("ret void");
+                    if($1.type!="VOID"){
+                    	CB.emit("%retvar = alloca i32");
+                    	CB.emit("store i32 0, i32* %retvar");
                     }
-                    CB.emit("ret void"); //need to make a return lable and jump all returns to it
+                    CB.emit("br label %"+ $2.str + ".alloc_local");
+                    CB.emit($2.str + ".return:");
+                    string ret_exp = "void";
+                    if($1.type!="VOID"){
+                     	string ret = freshVar();
+                     	CB.emit(ret + " = load i32, i32* %retvar ");
+                     	ret_exp = "i32 "+ ret;
+                    }
+                    CB.emit("ret " + ret_exp);
+                    CB.emit($2.str + ".entry:");
+  				} Statements RBRACE {
+  					CB.emit("br label %"+ $2.str + ".return");
+  					CB.emit($2.str + ".alloc_local:");
+  					allocateStackVars();
+  					CB.emit("br label %"+ $2.str + ".entry");
+  					createZeroDivisionLabel();
                     CB.emit("}");
                     manual_return = false;
                     offset -= sm.close_scope();
@@ -244,7 +260,11 @@ Call 		: ID LPAREN ExpList RPAREN {
 				if($1.str != "print"){
 					CB.emit(ret + "call "+ type + " @"+$1.str + "(" + callList(*($3.args)) + ")");
 				} else {
-					//call print
+					string id = freshVar().substr(1);
+					int len = (*($3.args))[0].length()-2;
+					string str =  (*($3.args))[0].substr(1,len);
+					CB.emitGlobal("@."+id+" = constant ["+ to_string(len+1) +"x i8] c\"" + str + "\\00\"");
+					CB.emit("call void @print(i8* getelementptr (["+ to_string(len+1) +" x i8], ["+to_string(len+1)+" x i8]* @."+id+", i32 0, i32 0))" );
 				}
 				
 				delete $3.args;
@@ -361,6 +381,11 @@ Exp         : NUM {
 						CB.emit($$.str + " = mul i32 " + $1.str + ", " + $3.str); //need to assert legalety for int-byte operration
 					} else {
 						//emit code to handle zero division
+						string tmp = freshVar();
+						CB.emit(tmp + " =  icmp eq i32 0, "+ $3.str);
+						string false_lable = freshVar().substr(1);
+						CB.emit("br i1 "+ tmp + ", label %" + funcId + "." + ZeroDivisionLabel + ", label %" + false_lable);
+						CB.emit(false_lable + ":");
 						CB.emit($$.str + " = sdiv i32 " + $1.str + ", " + $3.str); //need to assert legalety for int-byte operration
 					}
 					if($$.type=="BYTE"){
@@ -477,6 +502,7 @@ Statement   : LBRACE {sm.open_scope();} Statements RBRACE {
 					exit(1);
 				}	
 				sm.define_symbol($2.str,$1.type,false,offset++); 
+				CB.emit("store i32 "+ $4.str + ", i32* %var" + $2.str);
 			}
 			| EnumType ID ASSIGN Exp SC {
 				if(sm.is_symbol_defined($2.str) || $2.str==funcId) {
@@ -516,7 +542,7 @@ Statement   : LBRACE {sm.open_scope();} Statements RBRACE {
 					exit(1);
 				}
 				manual_return = true;
-				CB.emit("red void");
+				CB.emit("br label %"+ funcId + ".return");
 			}
 			| RETURN Exp SC {
 				if(funcRet == "VOID" || (funcRet!=$2.type && !(funcRet=="INT" && ($2.type=="BYTE" || $2.isEnum == true)))){
@@ -527,7 +553,8 @@ Statement   : LBRACE {sm.open_scope();} Statements RBRACE {
 				if(funcRet == "VOID" || funcRet == "BYTE" ){
 					//parse result
 				}
-				CB.emit("ret " + $2.str);
+				CB.emit("store i32 " + $2.str + ", i32* %retvar");
+  				CB.emit("br label %"+ funcId + ".return");
 			}
 			| IF LPAREN Exp RPAREN Subrotine Statement  {
 				if($3.type!="BOOL"){
@@ -607,7 +634,7 @@ int main() {
 	printi_args.push_back("INT");
 	sm.define_func_symbol("printi","VOID",false,printi_args);
 	emitPrintFuncs();
-	createZeroDivisionLabel();
+	CB.emitGlobal("@.zero_division = constant ["+to_string(zero_error.length()+2)+" x i8] c\""+ zero_error +"\\0A\\00\"");
 	yyparse();
 	if(invalid_main(sm)){
 		output::errorMainMissing();
@@ -623,15 +650,18 @@ string freshVar(){
 }
 
 void createZeroDivisionLabel(){
-	//create zero division lable
+	CB.emit(funcId + "." +ZeroDivisionLabel+ ":");
+    CB.emit("call void @print(i8* getelementptr (["+ to_string(zero_error.length()+2) +" x i8], ["+to_string(zero_error.length()+2)+" x i8]* @.zero_division, i32 0, i32 0))" );
+    CB.emit("call void @exit(i32 1)");
+    CB.emit("br label %" + funcId + ".return");
 }
 
 string arglist(int size){
 	string lst = "";
 		for(int i=0;i<size-1;i++){
-		lst+= "i32 %" + to_string(i) + ", ";
+		lst+= "i32 %arg" + to_string(i) + ", ";
 		}
-		return size>0?lst + "i32 %" +to_string(size-1):"";
+		return size>0?lst + "i32 %arg" +to_string(size-1):"";
 	}
 
 string callList(vector<string> list){
@@ -650,7 +680,9 @@ void allocateStackVars(){
 	for(Symbol symbol: sm.get_current_symbols()){
 		CB.emit("%var" + symbol.get_symbol_name()+ " = alloca i32" );
 		if (symbol.get_symbol_offset()<0){
-			CB.emit("store i32 %"+ to_string(-1*(symbol.get_symbol_offset()+1)) + ", i32* %var" + symbol.get_symbol_name());
+			CB.emit("store i32 %arg"+ to_string(-1*(symbol.get_symbol_offset()+1)) + ", i32* %var" + symbol.get_symbol_name());
+		} else {
+			CB.emit("store i32 0, i32* %var" + symbol.get_symbol_name());
 		}
 	}
 }
