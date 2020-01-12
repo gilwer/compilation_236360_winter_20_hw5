@@ -4,6 +4,7 @@
 #define __ATTRIBUTES_H
 #include <string>
 #include <vector>
+#include "bp.hpp"
 using namespace std;
 
 typedef struct

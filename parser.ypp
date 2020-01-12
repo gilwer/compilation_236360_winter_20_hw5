@@ -422,7 +422,6 @@ Exp         : NUM {
 
 				int curr_instr = CB.emit("goto @");
 				$$.truelist = CB.makelist(make_pair(curr_instr, FIRST));
-				curr_instr;
 				}
 			| FALSE {
 				$$.type = "BOOL";
@@ -431,7 +430,6 @@ Exp         : NUM {
 
 				int curr_instr = CB.emit("goto @");
 				$$.falselist = CB.makelist(make_pair(curr_instr, FIRST));
-				curr_instr;
 				}
 			| NOT Exp {
 				if($2.type != "BOOL" ){
@@ -441,8 +439,8 @@ Exp         : NUM {
 				$$.type = "BOOL";
 				$$.lineno = $2.lineno;
 				
-				$$.falselist = $2.truelist
-				$$.truelist = $2.falselist
+				$$.falselist = $2.truelist;
+				$$.truelist = $2.falselist;
 			}
 			| Exp AND M Exp {
 				if($1.type != "BOOL" || $4.type !="BOOL" ){
@@ -477,10 +475,10 @@ Exp         : NUM {
 				$$.lineno = $1.lineno;
 				
 				$$.str = freshVar();
-				CB.emit($$.str " = icmp " + token_to_op_str($2.str) + " i32 " $1.str + ", " + $3.str);
+				CB.emit($$.str + " = icmp " + token_to_op_str($2.str) + " i32 " + $1.str + ", " + $3.str);
 				int loc = CB.emit("br i1 " + $$.str + ", label @, label @");
-				$$.truelist = CB.makelist(make_pair(loc1,FIRST));
-				$$.falselist = CB.makelist(make_pair(loc1,SECOND));
+				$$.truelist = CB.makelist(make_pair(loc,FIRST));
+				$$.falselist = CB.makelist(make_pair(loc,SECOND));
 			}
 			| Exp EQUAL Exp {
 				if(!($1.type=="INT" || $1.type=="BYTE")||!($3.type=="INT" || $3.type=="BYTE")){
@@ -491,10 +489,10 @@ Exp         : NUM {
 				$$.lineno = $1.lineno;
 				
 				$$.str = freshVar();
-				CB.emit($$.str " = icmp " + token_to_op_str($2.str) + " i32 " $1.str + ", " + $3.str);
+				CB.emit($$.str + " = icmp " + token_to_op_str($2.str) + " i32 " + $1.str + ", " + $3.str);
 				int loc = CB.emit("br i1 " + $$.str + ", label @, label @");
-				$$.truelist = CB.makelist(make_pair(loc1,FIRST));
-				$$.falselist = CB.makelist(make_pair(loc1,SECOND));
+				$$.truelist = CB.makelist(make_pair(loc,FIRST));
+				$$.falselist = CB.makelist(make_pair(loc,SECOND));
 				}
 			;
 
@@ -735,29 +733,21 @@ void emitPrintFuncs(){
 }
 
 string token_to_op_str(string token) {
-	string op_str;
-	switch(token) {
-	   	case "<":
-	    	op_str = "slt";
-	      	break;
-	   	case ">":
-	      	op_str = "sgt";
-	      	break;
-	    case "<=":
-	      	op_str = "sle";
-	      	break;
-      	case ">=":
-	      	op_str = "sge";
-	      	break;
-	    case "==":
-	      	op_str = "eq";
-	      	break;
-      	case "!=":
-	      	op_str = "ne";
-	      	break;
-	    default:
-	    	op_str = "";
+	string op_str = "";
+	
+	if (token == "<") {
+		op_str = "slt";
+	} else if (token == ">") {
+		op_str = "sgt";
+	} else if (token == "<=") {
+		op_str = "sle";
+	} else if (token == ">=") {
+		op_str = "sge";
+	} else if (token == "==") {
+		op_str = "eq";
+	} else if (token == "!=") {
+		op_str = "ne";
 	}
 
-	retrun op_str;
+	return op_str;
 }
