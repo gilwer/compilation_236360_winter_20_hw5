@@ -1,4 +1,5 @@
 
+
 %{
 	/*C user declerations*/
 	#include "source.h"
@@ -38,9 +39,7 @@
  	void emitPrintFuncs();
  	string accumulateHelper(string a,string b);
  	void allocateStackVars();
-
-
-
+ 	string token_to_op_str(string token);
 
 %}
 
@@ -420,11 +419,19 @@ Exp         : NUM {
 				$$.type = "BOOL";
 				$$.lineno = yylineno;
 				$$.str = $1.str;
+
+				int curr_instr = CB.emit("goto @");
+				$$.truelist = CB.makelist(make_pair(curr_instr, FIRST));
+				curr_instr;
 				}
 			| FALSE {
 				$$.type = "BOOL";
 				$$.lineno = yylineno;
 				$$.str = $1.str;
+
+				int curr_instr = CB.emit("goto @");
+				$$.falselist = CB.makelist(make_pair(curr_instr, FIRST));
+				curr_instr;
 				}
 			| NOT Exp {
 				if($2.type != "BOOL" ){
@@ -433,25 +440,33 @@ Exp         : NUM {
 					}
 				$$.type = "BOOL";
 				$$.lineno = $2.lineno;
-				//need to  handle - maybe switch truelist with falselist
+				
+				$$.falselist = $2.truelist
+				$$.truelist = $2.falselist
 			}
-			| Exp AND Exp {
-				if($1.type != "BOOL" || $3.type !="BOOL" ){
+			| Exp AND M Exp {
+				if($1.type != "BOOL" || $4.type !="BOOL" ){
 						output::errorMismatch(yylineno);
 						exit(1);
 					}
 				$$.type = "BOOL";
 				$$.lineno = $1.lineno;
-				//need to handle 
+				
+				CB.bpatch($1.truelist, $3.instr);
+				$$.truelist = $4.truelist;
+				$$.falselist = CB.merge($1.falselist,$4.falselist);
 			}
-			| Exp OR Exp {
-				if($1.type != "BOOL" || $3.type !="BOOL" ){
+			| Exp OR M Exp {
+				if($1.type != "BOOL" || $4.type !="BOOL" ){
 						output::errorMismatch(yylineno);
 						exit(1);
 					}
 				$$.type = "BOOL";
 				$$.lineno = $1.lineno;
-				//need to handle 
+				
+				CB.bpatch($1.falselist, $3.instr);
+				$$.falselist = $4.falselist;
+				$$.truelist = CB.merge($1.truelist,$4.truelist);
 				}
 			| Exp RELOP Exp {
 				if(!($1.type=="INT" || $1.type=="BYTE")||!($3.type=="INT" || $3.type=="BYTE")){
@@ -460,7 +475,12 @@ Exp         : NUM {
 					}
 				$$.type = "BOOL";
 				$$.lineno = $1.lineno;
-				//need to handle 
+				
+				$$.str = freshVar();
+				CB.emit($$.str " = icmp " + token_to_op_str($2.str) + " i32 " $1.str + ", " + $3.str);
+				int loc = CB.emit("br i1 " + $$.str + ", label @, label @");
+				$$.truelist = CB.makelist(make_pair(loc1,FIRST));
+				$$.falselist = CB.makelist(make_pair(loc1,SECOND));
 			}
 			| Exp EQUAL Exp {
 				if(!($1.type=="INT" || $1.type=="BYTE")||!($3.type=="INT" || $3.type=="BYTE")){
@@ -469,7 +489,12 @@ Exp         : NUM {
 					}
 				$$.type = "BOOL";
 				$$.lineno = $1.lineno;
-				//need to handle 
+				
+				$$.str = freshVar();
+				CB.emit($$.str " = icmp " + token_to_op_str($2.str) + " i32 " $1.str + ", " + $3.str);
+				int loc = CB.emit("br i1 " + $$.str + ", label @, label @");
+				$$.truelist = CB.makelist(make_pair(loc1,FIRST));
+				$$.falselist = CB.makelist(make_pair(loc1,SECOND));
 				}
 			;
 
@@ -603,7 +628,13 @@ Type 		: INT {$$.type = "INT";}
 			| BOOL {$$.type = "BOOL";}
 			;
 
-Subrotine	: /* empty */ {sm.open_scope();};			
+Subrotine	: /* empty */ {sm.open_scope();};
+
+M 			: /* epsilon */ {
+               CB.emit("#Added label here");
+               $$.instr = CB.genLabel();
+           	}
+           	;			
 
 %%
 
@@ -701,4 +732,32 @@ void emitPrintFuncs(){
 	CB.emit("ret void");
 	CB.emit("}");
 
+}
+
+string token_to_op_str(string token) {
+	string op_str;
+	switch(token) {
+	   	case "<":
+	    	op_str = "slt";
+	      	break;
+	   	case ">":
+	      	op_str = "sgt";
+	      	break;
+	    case "<=":
+	      	op_str = "sle";
+	      	break;
+      	case ">=":
+	      	op_str = "sge";
+	      	break;
+	    case "==":
+	      	op_str = "eq";
+	      	break;
+      	case "!=":
+	      	op_str = "ne";
+	      	break;
+	    default:
+	    	op_str = "";
+	}
+
+	retrun op_str;
 }

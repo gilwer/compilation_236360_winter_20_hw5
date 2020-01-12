@@ -15,6 +15,9 @@ typedef struct
 	vector<string>* argTypes;
 	vector<string>* args;
 	int lineno;
+    vector<pair<int,BranchLabelIndex>> truelist;
+    vector<pair<int,BranchLabelIndex>> falselist;
+    string instr;
 } expAttribute;
 
 
