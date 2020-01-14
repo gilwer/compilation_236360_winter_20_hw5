@@ -498,7 +498,9 @@ Exp         : NUM {
 
 Statement   : LBRACE {sm.open_scope();} Statements RBRACE {
 				offset -= sm.close_scope();
-				}
+
+				$$.nextlist = $3.nextlist;
+			}
 			| Type ID SC {
 				if(sm.is_symbol_defined($2.str) || $2.str==funcId ){
 					output::errorDef(yylineno,$2.str);
@@ -585,28 +587,43 @@ Statement   : LBRACE {sm.open_scope();} Statements RBRACE {
 					exit(1);
 				}
 				offset -= sm.close_scope();
-				}  
-			| IF LPAREN Exp RPAREN Subrotine Statement ELSE {
-			        if($3.type!="BOOL"){
-                        output::errorMismatch($3.lineno);
-                        exit(1);
-                    }
-                    offset -= sm.close_scope();
-                    sm.open_scope();
-                } Statement {
-                    offset -= sm.close_scope();
-                }
-			| WHILE LPAREN Exp RPAREN {
-			    if($3.type!="BOOL"){
+
+				CB.bpatch($3.truelist, $5.instr);
+				$$.nextlist = CB.merge($3.falselist, $6.nextlist);
+			}
+			| IF LPAREN Exp RPAREN Subrotine Statement N_ELSE {
+		        if($3.type!="BOOL"){
                     output::errorMismatch($3.lineno);
+                    exit(1);
+                }
+                offset -= sm.close_scope();
+                sm.open_scope();
+
+                CB.bpatch($3.truelist, $5.instr);
+			} M Statement {
+                offset -= sm.close_scope();
+
+                CB.bpatch($3.falselist, $9.instr);
+                vector<pair<int,BranchLabelIndex>> tmp = CB.merge($6.nextlist, $7.nextlist);
+                $$.nextlist = CB.merge(tmp, $10.nextlist);
+			}
+			| WHILE M LPAREN Exp RPAREN {
+			    if($4.type!="BOOL"){
+                    output::errorMismatch($4.lineno);
                     exit(1);
                 }
 				sm.open_scope();
 				isLoop++;
-				} Statement {
+
+				$$.nextlist = $4.falselist;
+			} M Statement {
 				offset -= sm.close_scope();
 				isLoop--;
-				} 
+
+				CB.bpatch($8.nextlist, $2.instr);
+				CB.bpatch($4.truelist, $7.instr);
+				CB.emit("br labal " + $2.instr);
+	 		} 
 			| BREAK SC {
 				if(isLoop==0){
 					output::errorUnexpectedBreak(yylineno);
@@ -626,13 +643,25 @@ Type 		: INT {$$.type = "INT";}
 			| BOOL {$$.type = "BOOL";}
 			;
 
-Subrotine	: /* empty */ {sm.open_scope();};
+Subrotine	: /* empty */ {
+				sm.open_scope();
+				CB.emit("#Added label here");
+               	$$.instr = CB.genLabel();
+			}
+			;
 
 M 			: /* epsilon */ {
                CB.emit("#Added label here");
                $$.instr = CB.genLabel();
            	}
-           	;			
+           	;
+
+N_ELSE 		: ELSE {
+               CB.emit("#Added label here");
+               int loc = CB.emit("br label @");
+               $$.nextlist = CB.makelist(make_pair(loc,FIRST));
+           	}
+           	;
 
 %%
 
@@ -734,7 +763,7 @@ void emitPrintFuncs(){
 
 string token_to_op_str(string token) {
 	string op_str = "";
-	
+
 	if (token == "<") {
 		op_str = "slt";
 	} else if (token == ">") {

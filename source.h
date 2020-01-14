@@ -18,6 +18,7 @@ typedef struct
 	int lineno;
     vector<pair<int,BranchLabelIndex>> truelist;
     vector<pair<int,BranchLabelIndex>> falselist;
+    vector<pair<int,BranchLabelIndex>> nextlist;
     string instr;
 } expAttribute;
 
