@@ -34,12 +34,14 @@
 	const string ZeroDivisionLabel = "zero_division_label";
 	const string zero_error = "Error division by zero";
  	string arglist(int size);
- 	string callList(vector<string> list);
+ 	string callList(vector<string> list,vector<string> types);
  	bool manual_return = false;
  	void emitPrintFuncs();
  	string accumulateHelper(string a,string b);
  	void allocateStackVars();
  	string token_to_op_str(string token);
+ 	int open_scope();
+ 	int close_scope(int address,string return_label);
 
 %}
 
@@ -104,7 +106,7 @@ FuncDec 	: RetType ID LPAREN {
                     	CB.emit("%retvar = alloca i32");
                     	CB.emit("store i32 0, i32* %retvar");
                     }
-                    CB.emit("br label %"+ $2.str + ".alloc_local");
+                    $3.val=open_scope();
                     CB.emit($2.str + ".return:");
                     string ret_exp = "void";
                     if($1.type!="VOID"){
@@ -113,16 +115,14 @@ FuncDec 	: RetType ID LPAREN {
                      	ret_exp = "i32 "+ ret;
                     }
                     CB.emit("ret " + ret_exp);
-                    CB.emit($2.str + ".entry:");
+                    $3.instr = CB.genLabel();
   				} Statements RBRACE {
   					CB.emit("br label %"+ $2.str + ".return");
-  					CB.emit($2.str + ".alloc_local:");
-  					allocateStackVars();
-  					CB.emit("br label %"+ $2.str + ".entry");
   					createZeroDivisionLabel();
+  					offset -= close_scope($3.val,$3.instr);
                     CB.emit("}");
                     manual_return = false;
-                    offset -= sm.close_scope();
+                    
                     vector<string> args = *$5.argTypes;
                     sm.define_func_symbol($2.str,$1.str,false,args);
                     delete $5.argTypes;
@@ -247,7 +247,7 @@ Call 		: ID LPAREN ExpList RPAREN {
 					exit(1);
 				}
 				$$.type = funcId!=$1.str?sm.get_func_ret($1.str):funcRet;;
-				delete $3.argTypes;
+				
 				$$.lineno = yylineno;
 				string type = "void";
 				string ret = "";
@@ -257,7 +257,7 @@ Call 		: ID LPAREN ExpList RPAREN {
 					ret = $$.str + " = ";
 				}
 				if($1.str != "print"){
-					CB.emit(ret + "call "+ type + " @"+$1.str + "(" + callList(*($3.args)) + ")");
+					CB.emit(ret + "call "+ type + " @"+$1.str + "(" + callList(*($3.args),*($3.argTypes)) + ")");
 				} else {
 					string id = freshVar().substr(1);
 					int len = (*($3.args))[0].length()-2;
@@ -265,7 +265,7 @@ Call 		: ID LPAREN ExpList RPAREN {
 					CB.emitGlobal("@."+id+" = constant ["+ to_string(len+1) +"x i8] c\"" + str + "\\00\"");
 					CB.emit("call void @print(i8* getelementptr (["+ to_string(len+1) +" x i8], ["+to_string(len+1)+" x i8]* @."+id+", i32 0, i32 0))" );
 				}
-				
+				delete $3.argTypes;
 				delete $3.args;
 				}
 			| ID LPAREN RPAREN {
@@ -295,6 +295,19 @@ Call 		: ID LPAREN ExpList RPAREN {
 ExpList     : Exp {
 				$$.argTypes = new vector<string>;
 				$$.argTypes->push_back($1.type);
+				if($1.type == "BOOL"){
+					string true_label = CB.genLabel();
+					CB.bpatch($1.truelist,true_label);
+					int true_address = CB.emit("br label @");
+					string false_lable = CB.genLabel();
+					CB.bpatch($1.falselist,false_lable);
+					int false_address = CB.emit("br label @");
+					string next = CB.genLabel();
+					CB.bpatch(CB.merge(CB.makelist(make_pair(true_address,FIRST)),CB.makelist(make_pair(false_address,FIRST))),next);
+					string tmp = freshVar();
+					CB.emit(tmp + " = phi i1 [ true, %" + true_label+ " ], [ false, %"+ false_lable +" ]");
+					$1.str = tmp;
+				}
 				$$.args = new vector<string>;
 				$$.args->push_back($1.str);
 			}
@@ -303,6 +316,19 @@ ExpList     : Exp {
 			$$.argTypes->push_back($1.type);
 			$$.argTypes->insert($$.argTypes->end(),$3.argTypes->begin(),$3.argTypes->end());
 			delete $3.argTypes;
+			if($1.type == "BOOL"){
+					string true_label = CB.genLabel();
+					CB.bpatch($1.truelist,true_label);
+					int true_address = CB.emit("br label @");
+					string false_lable = CB.genLabel();
+					CB.bpatch($1.falselist,false_lable);
+					int false_address = CB.emit("br label @");
+					string next = CB.genLabel();
+					CB.bpatch(CB.merge(CB.makelist(make_pair(true_address,FIRST)),CB.makelist(make_pair(false_address,FIRST))),next);
+					string tmp = freshVar();
+					CB.emit(tmp + " = phi i1 [ true, %" + true_label+ " ], [ false, %"+ false_lable +" ]");
+					$1.str = tmp;
+			}
 			$$.args = new vector<string>;
 			$$.args->push_back($1.str);
 			$$.args->insert($$.args->end(),$3.args->begin(),$3.args->end());
@@ -346,6 +372,15 @@ Exp         : NUM {
 				$$.lineno = yylineno;
 				$$.str = freshVar();
 				CB.emit($$.str+ " = load i32, i32* %var"+$1.str);
+				if($$.type == "BOOL"){
+					string converted = freshVar();
+					CB.emit(converted + " = trunc i32 "+$$.str+" to i1");
+					string tmp = freshVar();
+					CB.emit(tmp + " =  icmp eq i1 true, "+ converted);
+					int curr_instr = CB.emit("br i1 "+tmp+", label @, label @");
+					$$.truelist = CB.makelist(make_pair(curr_instr, FIRST));
+					$$.falselist = CB.makelist(make_pair(curr_instr, SECOND));
+				}
 				
 			}
 			| Exp PLUS Exp {
@@ -398,6 +433,7 @@ Exp         : NUM {
 					}
 					$$.type = "INT";
 					$$.lineno = $4.lineno;
+					$$.str = $4.str;
 				}
 			| NUM B {
 			    if(stoi($1.str) > 255){
@@ -420,7 +456,7 @@ Exp         : NUM {
 				$$.lineno = yylineno;
 				$$.str = $1.str;
 
-				int curr_instr = CB.emit("goto @");
+				int curr_instr = CB.emit("br label @");
 				$$.truelist = CB.makelist(make_pair(curr_instr, FIRST));
 				}
 			| FALSE {
@@ -428,7 +464,7 @@ Exp         : NUM {
 				$$.lineno = yylineno;
 				$$.str = $1.str;
 
-				int curr_instr = CB.emit("goto @");
+				int curr_instr = CB.emit("br label @");
 				$$.falselist = CB.makelist(make_pair(curr_instr, FIRST));
 				}
 			| NOT Exp {
@@ -496,8 +532,17 @@ Exp         : NUM {
 				}
 			;
 
-Statement   : LBRACE {sm.open_scope();} Statements RBRACE {
-				offset -= sm.close_scope();
+Statement   : LBRACE {
+				sm.open_scope();
+				$1.val=open_scope();
+				$1.instr=CB.genLabel();
+			} Statements RBRACE {
+
+				int skip_address = CB.emit("br label @");
+				offset -= close_scope($1.val,$1.instr);
+				string skip = CB.genLabel();
+				CB.bpatch(CB.makelist(make_pair(skip_address,FIRST)),skip);
+				
 
 				$$.nextlist = $3.nextlist;
 			}
@@ -526,7 +571,23 @@ Statement   : LBRACE {sm.open_scope();} Statements RBRACE {
 					
 					exit(1);
 				}	
-				sm.define_symbol($2.str,$1.type,false,offset++); 
+				sm.define_symbol($2.str,$1.type,false,offset++);
+				if($4.type == "BOOL") {
+					string true_label = CB.genLabel();
+					CB.bpatch($4.truelist,true_label);
+					int true_address = CB.emit("br label @");
+
+					string false_lable = CB.genLabel();
+					CB.bpatch($4.falselist,false_lable);
+					int false_address = CB.emit("br label @");
+
+					string next = CB.genLabel();
+					CB.bpatch(CB.merge(CB.makelist(make_pair(true_address,FIRST)),CB.makelist(make_pair(false_address,FIRST))),next);
+					string tmp = freshVar();
+					CB.emit(tmp + " = phi i1 [ true, %" + true_label+ " ], [ false, %"+ false_lable +" ]");
+					$4.str = freshVar();
+					CB.emit($4.str + " = zext i1 "+tmp+" to i32");
+				}
 				CB.emit("store i32 "+ $4.str + ", i32* %var" + $2.str);
 			}
 			| EnumType ID ASSIGN Exp SC {
@@ -557,6 +618,21 @@ Statement   : LBRACE {sm.open_scope();} Statements RBRACE {
 				if(type != $3.type && !(type== "INT" && $3.type == "BYTE")){
 					output::errorMismatch(yylineno);
 					exit(1);
+				}
+				if($3.type == "BOOL") {
+					string true_label = CB.genLabel();
+					CB.bpatch($3.truelist,true_label);
+					int true_address = CB.emit("br label @");
+
+					string false_lable = CB.genLabel();
+					CB.bpatch($3.falselist,false_lable);
+					int false_address = CB.emit("br label @");
+					string next = CB.genLabel();
+					CB.bpatch(CB.merge(CB.makelist(make_pair(true_address,FIRST)),CB.makelist(make_pair(false_address,FIRST))),next);
+					string tmp = freshVar();
+					CB.emit(tmp + " = phi i1 [ true, %" + true_label+ " ], [ false, %"+ false_lable +" ]");
+					$3.str = freshVar();
+					CB.emit($3.str + " = zext i1 "+tmp+" to i32");
 				}	
 				CB.emit("store i32 "+ $3.str + ", i32* %var" + $1.str);
 				} 
@@ -586,26 +662,40 @@ Statement   : LBRACE {sm.open_scope();} Statements RBRACE {
 					output::errorMismatch($3.lineno);
 					exit(1);
 				}
-				offset -= sm.close_scope();
-
 				CB.bpatch($3.truelist, $5.instr);
-				$$.nextlist = CB.merge($3.falselist, $6.nextlist);
+				$$.nextlist = CB.makelist(make_pair(CB.emit("br label @"),FIRST));
+				$$.nextlist = CB.merge($3.falselist,$$.nextlist);
+				$$.nextlist = CB.merge($$.nextlist, $6.nextlist);
+				offset -= close_scope($5.val,$5.instr);
+				string label = CB.genLabel();
+				CB.bpatch($$.nextlist,label);
+
 			}
 			| IF LPAREN Exp RPAREN Subrotine Statement N_ELSE {
 		        if($3.type!="BOOL"){
                     output::errorMismatch($3.lineno);
                     exit(1);
                 }
-                offset -= sm.close_scope();
+                int skip_address = CB.emit("br label @");
+				offset -=close_scope($5.val,$5.instr);
+				string skip = CB.genLabel();
+				CB.bpatch(CB.makelist(make_pair(skip_address,FIRST)),skip);
                 sm.open_scope();
-
+                $7.val=open_scope();
+				$7.instr=CB.genLabel();
                 CB.bpatch($3.truelist, $5.instr);
 			} M Statement {
-                offset -= sm.close_scope();
+               
 
                 CB.bpatch($3.falselist, $9.instr);
                 vector<pair<int,BranchLabelIndex>> tmp = CB.merge($6.nextlist, $7.nextlist);
-                $$.nextlist = CB.merge(tmp, $10.nextlist);
+                $$.nextlist = CB.makelist(make_pair(CB.emit("br label @"),FIRST));
+                $$.nextlist = CB.merge($$.nextlist, $10.nextlist);
+                $$.nextlist = CB.merge($$.nextlist, tmp);
+                offset -= close_scope($7.val,$7.instr);
+                string label = CB.genLabel();
+				CB.bpatch($$.nextlist,label);
+
 			}
 			| WHILE M LPAREN Exp RPAREN {
 			    if($4.type!="BOOL"){
@@ -613,16 +703,23 @@ Statement   : LBRACE {sm.open_scope();} Statements RBRACE {
                     exit(1);
                 }
 				sm.open_scope();
+				$5.val=open_scope();
+				$5.instr=CB.genLabel();
 				isLoop++;
 
 				$$.nextlist = $4.falselist;
 			} M Statement {
-				offset -= sm.close_scope();
+				
 				isLoop--;
 
 				CB.bpatch($8.nextlist, $2.instr);
 				CB.bpatch($4.truelist, $7.instr);
-				CB.emit("br labal " + $2.instr);
+				CB.emit("br label %" + $2.instr);
+				offset -= close_scope($5.val,$5.instr);
+				string end_while = CB.genLabel();
+				CB.bpatch($4.falselist,end_while);
+				
+
 	 		} 
 			| BREAK SC {
 				if(isLoop==0){
@@ -645,19 +742,22 @@ Type 		: INT {$$.type = "INT";}
 
 Subrotine	: /* empty */ {
 				sm.open_scope();
-				CB.emit("#Added label here");
+ 				$$.val=open_scope();
+			//	CB.emit("#Added label here");
                	$$.instr = CB.genLabel();
 			}
 			;
 
 M 			: /* epsilon */ {
-               CB.emit("#Added label here");
+            //   CB.emit("#Added label here");
+               int address = CB.emit("br label @");
                $$.instr = CB.genLabel();
+               CB.bpatch(CB.makelist(make_pair(address,FIRST)),$$.instr);
            	}
            	;
 
 N_ELSE 		: ELSE {
-               CB.emit("#Added label here");
+               //CB.emit("#Added label here");
                int loc = CB.emit("br label @");
                $$.nextlist = CB.makelist(make_pair(loc,FIRST));
            	}
@@ -717,14 +817,16 @@ void createZeroDivisionLabel(){
 string arglist(int size){
 	string lst = "";
 		for(int i=0;i<size-1;i++){
-		lst+= "i32 %arg" + to_string(i) + ", ";
+			string type = func_arg_types[i]=="BOOL"?"i1":"i32";
+			lst+= type +" %arg" + to_string(i) + ", ";
 		}
-		return size>0?lst + "i32 %arg" +to_string(size-1):"";
+		return size>0?lst + (func_arg_types[size-1]=="BOOL"?"i1":"i32") + " %arg" +to_string(size-1):"";
 	}
 
-string callList(vector<string> list){
+string callList(vector<string> list,vector<string> types){
 	for(int i =0;i<list.size();i++){
-		list[i]= "i32 " + list[i];
+		string type = types[i]=="BOOL"?"i1":"i32";
+		list[i]=  type +" " + list[i];
 	}
 	return accumulate(list.begin()+1,list.end(),*list.begin(),accumulateHelper);
 }
@@ -738,7 +840,13 @@ void allocateStackVars(){
 	for(Symbol symbol: sm.get_current_symbols()){
 		CB.emit("%var" + symbol.get_symbol_name()+ " = alloca i32" );
 		if (symbol.get_symbol_offset()<0){
-			CB.emit("store i32 %arg"+ to_string(-1*(symbol.get_symbol_offset()+1)) + ", i32* %var" + symbol.get_symbol_name());
+			string arg = "%arg"+to_string(-1*(symbol.get_symbol_offset()+1));
+			if(symbol.get_type()=="BOOL"){
+				string tmp = freshVar();
+				CB.emit(tmp + " = zext i1 "+arg+" to i32");
+				arg = tmp;
+			} 
+			CB.emit("store i32 "+ arg + ", i32* %var" + symbol.get_symbol_name());
 		} else {
 			CB.emit("store i32 0, i32* %var" + symbol.get_symbol_name());
 		}
@@ -779,4 +887,17 @@ string token_to_op_str(string token) {
 	}
 
 	return op_str;
+}
+
+int open_scope(){
+	return CB.emit("br label @");
+}
+int close_scope(int address,string return_label){
+
+	string label = CB.genLabel();
+	CB.bpatch(CB.makelist(make_pair(address,FIRST)),label);
+	allocateStackVars();
+	CB.emit("br label %"+ return_label);
+	
+	return sm.close_scope();
 }
