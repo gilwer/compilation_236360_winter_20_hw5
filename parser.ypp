@@ -371,17 +371,24 @@ Exp         : NUM {
 				$$.isEnum = sm.is_enum($1.str);
 				$$.lineno = yylineno;
 				$$.str = freshVar();
-				CB.emit($$.str+ " = load i32, i32* %var"+$1.str);
-				if($$.type == "BOOL"){
-					string converted = freshVar();
-					CB.emit(converted + " = trunc i32 "+$$.str+" to i1");
-					string tmp = freshVar();
-					CB.emit(tmp + " =  icmp eq i1 true, "+ converted);
-					int curr_instr = CB.emit("br i1 "+tmp+", label @, label @");
-					$$.truelist = CB.makelist(make_pair(curr_instr, FIRST));
-					$$.falselist = CB.makelist(make_pair(curr_instr, SECOND));
+				std::cout << "; " << "ID.str : " << $1.str << std::endl;
+
+				if (sm.is_enum_type($1.str))
+				{
+					int enum_num = sm.enum_to_int($1.str);
+					CB.emit($$.str+ " = add i32 0, " + to_string(enum_num));
+				} else {
+					CB.emit($$.str+ " = load i32, i32* %var"+$1.str);
+					if($$.type == "BOOL"){
+						string converted = freshVar();
+						CB.emit(converted + " = trunc i32 "+$$.str+" to i1");
+						string tmp = freshVar();
+						CB.emit(tmp + " =  icmp eq i1 true, "+ converted);
+						int curr_instr = CB.emit("br i1 "+tmp+", label @, label @");
+						$$.truelist = CB.makelist(make_pair(curr_instr, FIRST));
+						$$.falselist = CB.makelist(make_pair(curr_instr, SECOND));
+					}	
 				}
-				
 			}
 			| Exp PLUS Exp {
 					if(!($1.type=="INT" || $1.type=="BYTE")||!($3.type=="INT" || $3.type=="BYTE")){
@@ -601,9 +608,11 @@ Statement   : LBRACE {
 					delete $1.argTypes;
 					exit(1);
 				}	
-					sm.define_symbol($2.str,$1.type,true,offset++);
-					delete $1.argTypes;
-				}
+				sm.define_symbol($2.str,$1.type,true,offset++);
+				delete $1.argTypes;
+
+				CB.emit("store i32 "+ $4.str + ", i32* %var" + $2.str);
+			}
 			| ID ASSIGN Exp SC {
 				if(!sm.is_symbol_defined($1.str) || sm.get_var_type($1.str).find("->") != string::npos || sm.get_var_type($1.str)=="enum"){
 					output::errorUndef(yylineno,$1.str);

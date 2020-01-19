@@ -43,6 +43,8 @@ namespace compi3 {
 
         list<Symbol> get_current_symbols();
 
+        int enum_to_int(string enum_value);
+
     private:
         int _calc_current_offset() {
             auto current_scope = symbols_stack.top();
@@ -58,6 +60,7 @@ namespace compi3 {
             current_scope.push_back(curr_symbol);
 
             // save in map
+            std::cout << "; " << "saves: " << curr_symbol.get_symbol_name() << std::endl;
             symbols_map[curr_symbol.get_symbol_name()] = curr_symbol;
 
             return true;
@@ -154,9 +157,10 @@ namespace compi3 {
 
     vector<string> SymbolTable::get_enum_values(string symbol) {
         vector<string> res;
-        if( !is_enum(symbol) ) return res;
+        if( !is_enum_type(symbol) ) return res;
 
         auto curr_symbol = symbols_map[symbol];
+        std::cout << "; " << "curr_symbol : " << curr_symbol.get_symbol_name() << std::endl;
         res = curr_symbol.get_enum_values();
         return res;
     }
@@ -172,6 +176,27 @@ namespace compi3 {
 
     list<Symbol> SymbolTable::get_current_symbols(){
         return symbols_stack.top();
+    }
+
+    int SymbolTable::enum_to_int(string enum_value) {
+        string type = get_var_type(enum_value).substr(5);
+        std::cout << "; " << "type : " << type << std::endl;
+
+        vector<string> values = get_enum_values(type);
+        std::cout << "; ";
+        for (int i = 0; i < values.size(); ++i)
+        {
+            std::cout << "value" << i << " : " << values[i] << ", ";
+            if (values[i] == enum_value)
+            {
+                return i;
+                std::cout << std::endl;
+            }
+        }
+        
+        std::cout << std::endl;
+
+        return -1;
     }
 }
 
