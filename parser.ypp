@@ -839,7 +839,7 @@ int main() {
 	printi_args.push_back("INT");
 	sm.define_func_symbol("printi","VOID",false,printi_args);
 	emitPrintFuncs();
-	CB.emitGlobal("@.zero_division = constant ["+to_string(zero_error.length()+2)+" x i8] c\""+ zero_error +"\\0A\\00\"");
+	CB.emitGlobal("@.zero_division = constant ["+to_string(zero_error.length()+1)+" x i8] c\""+ zero_error +"\\00\"");
 	yyparse();
 	if(invalid_main(sm)){
 		output::errorMainMissing();
@@ -856,7 +856,7 @@ string freshVar(){
 
 void createZeroDivisionLabel(){
 	CB.emit(funcId + "." +ZeroDivisionLabel+ ":");
-    CB.emit("call void @print(i8* getelementptr (["+ to_string(zero_error.length()+2) +" x i8], ["+to_string(zero_error.length()+2)+" x i8]* @.zero_division, i32 0, i32 0))" );
+    CB.emit("call void @print(i8* getelementptr (["+ to_string(zero_error.length()+1) +" x i8], ["+to_string(zero_error.length()+1)+" x i8]* @.zero_division, i32 0, i32 0))" );
     CB.emit("call void @exit(i32 1)");
     CB.emit("br label %" + funcId + ".return");
 }
