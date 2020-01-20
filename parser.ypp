@@ -220,8 +220,17 @@ Enumerator 	: ID	{
 				} 
 			;
 
-Statements  : Statement {}
-			| Statements Statement {}
+Statements  : Statement {
+				$$.nextlist = $1.nextlist;
+				$$.falselist = $1.falselist;
+				$$.truelist = $1.truelist;
+			}
+			| Statements Statement {
+				$$.nextlist = CB.merge($1.nextlist,$2.nextlist);
+				$$.falselist = CB.merge($1.falselist,$2.falselist);
+				$$.truelist = CB.merge($1.truelist,$2.truelist);
+
+			}
 			;
 
 
@@ -361,6 +370,9 @@ Exp         : NUM {
  				$$.type = $2.type;
  			 	$$.lineno = $2.lineno;
  			 	$$.str =  $2.str;
+ 			 	$$.truelist = $2.truelist;
+ 			 	$$.falselist = $2.falselist;
+ 			 	$$.nextlist = $2.nextlist;
  			 	}
 			| ID {
 				if(!sm.is_symbol_defined($1.str) || sm.get_var_type($1.str)=="enum" || sm.get_var_type($1.str).find("->") != string::npos){
@@ -404,7 +416,10 @@ Exp         : NUM {
 						CB.emit($$.str + " = sub i32 " + $1.str + ", " + $3.str); //need to assert legalety for int-byte operration
 					}
 					if($$.type=="BYTE"){
-						//truncation of result
+						string tmp = freshVar();
+						CB.emit(tmp + " = trunc i32 " + $$.str + " to i8");
+						$$.str = freshVar();
+						CB.emit($$.str + " = zext i8 "+tmp+" to i32");
 					}
 				}
 			| Call {
@@ -430,7 +445,10 @@ Exp         : NUM {
 						CB.emit($$.str + " = sdiv i32 " + $1.str + ", " + $3.str); //need to assert legalety for int-byte operration
 					}
 					if($$.type=="BYTE"){
-						//truncation of result
+						string tmp = freshVar();
+						CB.emit(tmp + " = trunc i32 " + $$.str + " to i8");
+						$$.str = freshVar();
+						CB.emit($$.str + " = zext i8 "+tmp+" to i32");
 					}
 				}
 			| LPAREN Type RPAREN Exp {
@@ -549,9 +567,9 @@ Statement   : LBRACE {
 				offset -= close_scope($1.val,$1.instr);
 				string skip = CB.genLabel();
 				CB.bpatch(CB.makelist(make_pair(skip_address,FIRST)),skip);
-				
-
+				$$.falselist = $3.falselist;
 				$$.nextlist = $3.nextlist;
+				$$.truelist = $3.truelist;
 			}
 			| Type ID SC {
 				if(sm.is_symbol_defined($2.str) || $2.str==funcId ){
@@ -663,6 +681,21 @@ Statement   : LBRACE {
 				if(funcRet == "VOID" || funcRet == "BYTE" ){
 					//parse result
 				}
+				if(funcRet == "BOOL") {
+					string true_label = CB.genLabel();
+					CB.bpatch($2.truelist,true_label);
+					int true_address = CB.emit("br label @");
+
+					string false_lable = CB.genLabel();
+					CB.bpatch($2.falselist,false_lable);
+					int false_address = CB.emit("br label @");
+					string next = CB.genLabel();
+					CB.bpatch(CB.merge(CB.makelist(make_pair(true_address,FIRST)),CB.makelist(make_pair(false_address,FIRST))),next);
+					string tmp = freshVar();
+					CB.emit(tmp + " = phi i1 [ true, %" + true_label+ " ], [ false, %"+ false_lable +" ]");
+					$2.str = freshVar();
+					CB.emit($2.str + " = zext i1 "+tmp+" to i32");
+				}	
 				CB.emit("store i32 " + $2.str + ", i32* %retvar");
   				CB.emit("br label %"+ funcId + ".return");
 			}
@@ -678,6 +711,8 @@ Statement   : LBRACE {
 				offset -= close_scope($5.val,$5.instr);
 				string label = CB.genLabel();
 				CB.bpatch($$.nextlist,label);
+				$$.truelist=$6.truelist;
+				$$.falselist=$6.falselist;
 
 			}
 			| IF LPAREN Exp RPAREN Subrotine Statement N_ELSE {
@@ -704,6 +739,8 @@ Statement   : LBRACE {
                 offset -= close_scope($7.val,$7.instr);
                 string label = CB.genLabel();
 				CB.bpatch($$.nextlist,label);
+				$$.truelist=CB.merge($6.truelist,$10.truelist);
+				$$.falselist=CB.merge($6.falselist,$10.falselist);
 
 			}
 			| WHILE M LPAREN Exp RPAREN {
@@ -720,27 +757,28 @@ Statement   : LBRACE {
 			} M Statement {
 				
 				isLoop--;
-
+				CB.bpatch($8.truelist, $2.instr);
 				CB.bpatch($8.nextlist, $2.instr);
 				CB.bpatch($4.truelist, $7.instr);
 				CB.emit("br label %" + $2.instr);
 				offset -= close_scope($5.val,$5.instr);
 				string end_while = CB.genLabel();
 				CB.bpatch($4.falselist,end_while);
-				
-
+				CB.bpatch($8.falselist,end_while);
 	 		} 
 			| BREAK SC {
 				if(isLoop==0){
 					output::errorUnexpectedBreak(yylineno);
 					exit(1);
 				}
+				$$.falselist = CB.makelist(make_pair(CB.emit("br label @"),FIRST));
 			}
 			| CONTINUE SC {
 				if(isLoop==0){
 					output::errorUnexpectedContinue(yylineno);
 					exit(1);
 				}
+				$$.truelist = CB.makelist(make_pair(CB.emit("br label @"),FIRST));
 			}
 			;
 
