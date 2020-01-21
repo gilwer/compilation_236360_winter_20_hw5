@@ -36,6 +36,7 @@ for i in `seq 1 ${1}`; do
         echo "Done"
     else
         echo "Failed"
+        echo "res: ${res}" 
         exit 0
     fi
     rm "${path}/t${i}.ll" "${path}/t${i}.res"
