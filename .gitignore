@@ -36,3 +36,6 @@ cmake-build-debug/
 parser.tab.*
 lex.yy.c
 hw5
+
+*.res
+*.ll
