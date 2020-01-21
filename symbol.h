@@ -76,6 +76,10 @@ namespace compi3 {
         vector<string> get_enum_values() {
             return this->values;
         }
+
+        bool operator<(const Symbol symbol) const {
+            return name < symbol.name;
+        }
     };
 }
 
