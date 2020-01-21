@@ -3,7 +3,7 @@
 
 sub_folder="Spring18"
 path="tests/${sub_folder}"
-test_to_skip=(0)
+# test_to_skip=(7 19 20)
 # test_to_skip=(21 23)
 
 # $1: array
@@ -36,6 +36,7 @@ for i in `seq 1 ${1}`; do
         echo "Done"
     else
         echo "Failed"
+        echo "res: ${res}" 
         exit 0
     fi
     rm "${path}/t${i}.ll" "${path}/t${i}.res"

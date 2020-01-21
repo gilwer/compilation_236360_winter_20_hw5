@@ -40,7 +40,7 @@
  	string accumulateHelper(string a,string b);
  	void allocateStackVars();
  	string token_to_op_str(string token);
- 	int open_scope();
+ 	//int open_scope();
  	int close_scope(int address,string return_label);
 
 %}
@@ -106,7 +106,7 @@ FuncDec 	: RetType ID LPAREN {
                     	CB.emit("%retvar = alloca i32");
                     	CB.emit("store i32 0, i32* %retvar");
                     }
-                    $3.val=open_scope();
+                    //$3.val=open_scope();
                     CB.emit("br label %"+ $2.str + ".alloc_local");
                     CB.emit($2.str + ".return:");
                     string ret_exp = "void";
@@ -966,9 +966,9 @@ string token_to_op_str(string token) {
 	return op_str;
 }
 
-int open_scope(){
-	// return CB.emit("br label @");
-}
+// int open_scope(){
+// 	// return CB.emit("br label @");
+// }
 int close_scope(int address,string return_label){
 
 	// string label = CB.genLabel();
