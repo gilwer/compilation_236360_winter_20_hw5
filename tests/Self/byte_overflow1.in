@@ -1,0 +1,8 @@
+
+
+void main() {
+    byte asd=255b;
+    byte dsa=5b;
+    byte res = asd+dsa;
+    printi(res);
+}
