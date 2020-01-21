@@ -107,6 +107,7 @@ FuncDec 	: RetType ID LPAREN {
                     	CB.emit("store i32 0, i32* %retvar");
                     }
                     $3.val=open_scope();
+                    CB.emit("br label %"+ $2.str + ".alloc_local");
                     CB.emit($2.str + ".return:");
                     string ret_exp = "void";
                     if($1.type!="VOID"){
@@ -115,11 +116,14 @@ FuncDec 	: RetType ID LPAREN {
                      	ret_exp = "i32 "+ ret;
                     }
                     CB.emit("ret " + ret_exp);
-                    $3.instr = CB.genLabel();
+                    CB.emit($2.str + ".entry:");
   				} Statements RBRACE {
   					CB.emit("br label %"+ $2.str + ".return");
   					createZeroDivisionLabel();
   					offset -= close_scope($3.val,$3.instr);
+  					CB.emit($2.str + ".alloc_local:");
+  					allocateStackVars();
+  					CB.emit("br label %"+ $2.str + ".entry");
                     CB.emit("}");
                     manual_return = false;
                     
@@ -256,7 +260,6 @@ Call 		: ID LPAREN ExpList RPAREN {
 					exit(1);
 				}
 				$$.type = funcId!=$1.str?sm.get_func_ret($1.str):funcRet;;
-				
 				$$.lineno = yylineno;
 				string type = "void";
 				string ret = "";
@@ -267,6 +270,15 @@ Call 		: ID LPAREN ExpList RPAREN {
 				}
 				if($1.str != "print"){
 					CB.emit(ret + "call "+ type + " @"+$1.str + "(" + callList(*($3.args),*($3.argTypes)) + ")");
+					if($$.type == "BOOL"){
+					string converted = freshVar();
+					CB.emit(converted + " = trunc i32 "+$$.str+" to i1");
+					string tmp = freshVar();
+					CB.emit(tmp + " =  icmp eq i1 true, "+ converted);
+					int curr_instr = CB.emit("br i1 "+tmp+", label @, label @");
+					$$.truelist = CB.makelist(make_pair(curr_instr, FIRST));
+					$$.falselist = CB.makelist(make_pair(curr_instr, SECOND));
+				}
 				} else {
 					string id = freshVar().substr(1);
 					int len = (*($3.args))[0].length()-2;
@@ -298,6 +310,15 @@ Call 		: ID LPAREN ExpList RPAREN {
 					ret = $$.str + " = ";
 				}
 				CB.emit(ret + "call "+ type + " @"+$1.str + "()");
+				if($$.type == "BOOL"){
+					string converted = freshVar();
+					CB.emit(converted + " = trunc i32 "+$$.str+" to i1");
+					string tmp = freshVar();
+					CB.emit(tmp + " =  icmp eq i1 true, "+ converted);
+					int curr_instr = CB.emit("br i1 "+tmp+", label @, label @");
+					$$.truelist = CB.makelist(make_pair(curr_instr, FIRST));
+					$$.falselist = CB.makelist(make_pair(curr_instr, SECOND));
+				}
 			}
 			;
 
@@ -320,12 +341,11 @@ ExpList     : Exp {
 				$$.args = new vector<string>;
 				$$.args->push_back($1.str);
 			}
-			| Exp COMMA ExpList {
-			$$.argTypes = new vector<string>;
-			$$.argTypes->push_back($1.type);
-			$$.argTypes->insert($$.argTypes->end(),$3.argTypes->begin(),$3.argTypes->end());
-			delete $3.argTypes;
-			if($1.type == "BOOL"){
+			| Exp COMMA
+				{
+				$2.argTypes = new vector<string>;
+				$2.argTypes->push_back($1.type);
+				if($1.type == "BOOL"){
 					string true_label = CB.genLabel();
 					CB.bpatch($1.truelist,true_label);
 					int true_address = CB.emit("br label @");
@@ -337,11 +357,18 @@ ExpList     : Exp {
 					string tmp = freshVar();
 					CB.emit(tmp + " = phi i1 [ true, %" + true_label+ " ], [ false, %"+ false_lable +" ]");
 					$1.str = tmp;
-			}
-			$$.args = new vector<string>;
-			$$.args->push_back($1.str);
-			$$.args->insert($$.args->end(),$3.args->begin(),$3.args->end());
-			delete $3.args;
+				}
+				$2.args = new vector<string>;
+				$2.args->push_back($1.str);
+				}
+
+			 ExpList {
+			$$.argTypes=$2.argTypes;
+			$$.argTypes->insert($$.argTypes->end(),$4.argTypes->begin(),$4.argTypes->end());
+			delete $4.argTypes;
+			$$.args = $2.args;
+			$$.args->insert($$.args->end(),$4.args->begin(),$4.args->end());
+			delete $4.args;
 			}
 			;
 
@@ -559,14 +586,14 @@ Exp         : NUM {
 
 Statement   : LBRACE {
 				sm.open_scope();
-				$1.val=open_scope();
-				$1.instr=CB.genLabel();
+				// $1.val=open_scope();
+				// $1.instr=CB.genLabel();
 			} Statements RBRACE {
 
-				int skip_address = CB.emit("br label @");
+				//int skip_address = CB.emit("br label @");
 				offset -= close_scope($1.val,$1.instr);
-				string skip = CB.genLabel();
-				CB.bpatch(CB.makelist(make_pair(skip_address,FIRST)),skip);
+				//string skip = CB.genLabel();
+			//	CB.bpatch(CB.makelist(make_pair(skip_address,FIRST)),skip);
 				$$.falselist = $3.falselist;
 				$$.nextlist = $3.nextlist;
 				$$.truelist = $3.truelist;
@@ -577,6 +604,7 @@ Statement   : LBRACE {
 					exit(1);
 				}
 				sm.define_symbol($2.str,$1.type,false,offset++);
+				CB.emit("store i32 0, i32* %var" +$2.str);
 			}
 			| EnumType ID SC {
 				if(sm.is_symbol_defined($2.str) || $2.str==funcId){
@@ -584,6 +612,7 @@ Statement   : LBRACE {
 					exit(1);
 				}
 				sm.define_symbol($2.str,$1.type,true,offset++);
+				CB.emit("store i32 0, i32* %var" +$2.str);
 				} 
 			| EnumDecl {}
 			| Type ID ASSIGN Exp SC {
@@ -720,13 +749,13 @@ Statement   : LBRACE {
                     output::errorMismatch($3.lineno);
                     exit(1);
                 }
-                int skip_address = CB.emit("br label @");
+              //  int skip_address = CB.emit("br label @");
 				offset -=close_scope($5.val,$5.instr);
-				string skip = CB.genLabel();
-				CB.bpatch(CB.makelist(make_pair(skip_address,FIRST)),skip);
+			//	string skip = CB.genLabel();
+			//	CB.bpatch(CB.makelist(make_pair(skip_address,FIRST)),skip);
                 sm.open_scope();
-                $7.val=open_scope();
-				$7.instr=CB.genLabel();
+             //   $7.val=open_scope();
+			//	$7.instr=CB.genLabel();
                 CB.bpatch($3.truelist, $5.instr);
 			} M Statement {
                
@@ -749,8 +778,8 @@ Statement   : LBRACE {
                     exit(1);
                 }
 				sm.open_scope();
-				$5.val=open_scope();
-				$5.instr=CB.genLabel();
+				//$5.val=open_scope();
+			//	$5.instr=CB.genLabel();
 				isLoop++;
 
 				$$.nextlist = $4.falselist;
@@ -789,7 +818,7 @@ Type 		: INT {$$.type = "INT";}
 
 Subrotine	: /* empty */ {
 				sm.open_scope();
- 				$$.val=open_scope();
+ 				//$$.val=open_scope();
 			//	CB.emit("#Added label here");
                	$$.instr = CB.genLabel();
 			}
@@ -884,7 +913,7 @@ string accumulateHelper(string a,string b){
 
 void allocateStackVars(){
 	//need to call this func at the end of every scope but make sure the code is placed at the begining of the scope maybe branch and label maybe backpatching
-	for(Symbol symbol: sm.get_current_symbols()){
+	for(Symbol symbol: sm.get_func_vars()){
 		CB.emit("%var" + symbol.get_symbol_name()+ " = alloca i32" );
 		if (symbol.get_symbol_offset()<0){
 			string arg = "%arg"+to_string(-1*(symbol.get_symbol_offset()+1));
@@ -898,6 +927,7 @@ void allocateStackVars(){
 			CB.emit("store i32 0, i32* %var" + symbol.get_symbol_name());
 		}
 	}
+	sm.erase_func_args();
 }
 
 void emitPrintFuncs(){
@@ -937,14 +967,14 @@ string token_to_op_str(string token) {
 }
 
 int open_scope(){
-	return CB.emit("br label @");
+	// return CB.emit("br label @");
 }
 int close_scope(int address,string return_label){
 
-	string label = CB.genLabel();
-	CB.bpatch(CB.makelist(make_pair(address,FIRST)),label);
-	allocateStackVars();
-	CB.emit("br label %"+ return_label);
+	// string label = CB.genLabel();
+	// CB.bpatch(CB.makelist(make_pair(address,FIRST)),label);
+	// allocateStackVars();
+	// CB.emit("br label %"+ return_label);
 	
 	return sm.close_scope();
 }

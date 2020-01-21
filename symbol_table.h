@@ -9,6 +9,7 @@
 #include <vector>
 #include <stack>
 #include <map>
+#include <set>
 #include <list>
 #include "symbol.h"
 
@@ -18,6 +19,7 @@ namespace compi3 {
 
     class SymbolTable {
 
+        set<Symbol> tot_func_symbols;
         map<string, Symbol> symbols_map;
         stack<list<Symbol>> symbols_stack;
 
@@ -45,6 +47,8 @@ namespace compi3 {
 
         int enum_to_int(string enum_value);
 
+        set<Symbol> get_func_vars();
+        void erase_func_args();
     private:
         int _calc_current_offset() {
             auto current_scope = symbols_stack.top();
@@ -92,7 +96,9 @@ namespace compi3 {
             }
         }
         for ( auto sym : current_scope ) {
+            tot_func_symbols.insert(sym);
             symbols_map.erase(sym.get_symbol_name());
+            
         }
 
         symbols_stack.pop();
@@ -197,6 +203,13 @@ namespace compi3 {
         std::cout << std::endl;
 
         return -1;
+    }
+
+    set<Symbol> SymbolTable::get_func_vars(){
+        return tot_func_symbols;
+    }
+    void SymbolTable::erase_func_args(){
+        tot_func_symbols.clear();
     }
 }
 
