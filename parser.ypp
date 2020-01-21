@@ -271,14 +271,14 @@ Call 		: ID LPAREN ExpList RPAREN {
 				if($1.str != "print"){
 					CB.emit(ret + "call "+ type + " @"+$1.str + "(" + callList(*($3.args),*($3.argTypes)) + ")");
 					if($$.type == "BOOL"){
-					string converted = freshVar();
-					CB.emit(converted + " = trunc i32 "+$$.str+" to i1");
-					string tmp = freshVar();
-					CB.emit(tmp + " =  icmp eq i1 true, "+ converted);
-					int curr_instr = CB.emit("br i1 "+tmp+", label @, label @");
-					$$.truelist = CB.makelist(make_pair(curr_instr, FIRST));
-					$$.falselist = CB.makelist(make_pair(curr_instr, SECOND));
-				}
+						string converted = freshVar();
+						CB.emit(converted + " = trunc i32 "+$$.str+" to i1");
+						string tmp = freshVar();
+						CB.emit(tmp + " =  icmp eq i1 true, "+ converted);
+						int curr_instr = CB.emit("br i1 "+tmp+", label @, label @");
+						$$.truelist = CB.makelist(make_pair(curr_instr, FIRST));
+						$$.falselist = CB.makelist(make_pair(curr_instr, SECOND));
+					}
 				} else {
 					string id = freshVar().substr(1);
 					int len = (*($3.args))[0].length()-2;
@@ -692,7 +692,14 @@ Statement   : LBRACE {
 				}	
 				CB.emit("store i32 "+ $3.str + ", i32* %var" + $1.str);
 				} 
-			| Call SC {}
+			| Call SC {
+				if ($1.type == "BOOL")
+				{
+					string next = CB.genLabel();
+					CB.bpatch($1.truelist, next);
+					CB.bpatch($1.falselist, next);
+				}
+			}
 			| RETURN SC {
 				if(funcRet!="VOID"){
 					output::errorMismatch(yylineno);

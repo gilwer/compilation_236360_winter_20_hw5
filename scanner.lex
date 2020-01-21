@@ -13,7 +13,7 @@ void error();
 %option noyywrap
 digit           ([0-9])
 letter          ([a-zA-Z])
-whitespace      ([\t\n ])
+whitespace      ([\t\n\r ])
 
 
 %%
