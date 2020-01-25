@@ -400,6 +400,7 @@ Exp         : NUM {
  			 	$$.truelist = $2.truelist;
  			 	$$.falselist = $2.falselist;
  			 	$$.nextlist = $2.nextlist;
+ 			 	$$.isEnum = $2.isEnum;
  			 	}
 			| ID {
 				if(!sm.is_symbol_defined($1.str) || sm.get_var_type($1.str)=="enum" || sm.get_var_type($1.str).find("->") != string::npos){
@@ -480,6 +481,7 @@ Exp         : NUM {
 				}
 			| LPAREN Type RPAREN Exp {
 					if(!($2.type == "INT" && $4.isEnum == true)){
+						std::cout << "$4.isEnum = " << ($4.isEnum ? "true" : "false") << std::endl;
 						output::errorMismatch(yylineno);
 						exit(1);
 					}
@@ -710,6 +712,7 @@ Statement   : LBRACE {
 			}
 			| RETURN Exp SC {
 				if(funcRet == "VOID" || (funcRet!=$2.type && !(funcRet=="INT" && ($2.type=="BYTE" || $2.isEnum == true)))){
+					std::cout << "@#!^* RETURN Exp SC @#!^*" << std::endl;
 					output::errorMismatch($2.lineno);
 					exit(1);
 				}

@@ -1,0 +1,10 @@
+void main(){
+    int x = 2;
+    printi(x); // 2
+    int y = x;
+    printi(x); // 2
+    printi(y); // 2
+    x = 1 + 2 + y + x;
+    printi(x); // 7
+    printi(y+x); // 9
+}

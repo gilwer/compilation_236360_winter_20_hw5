@@ -1,0 +1,37 @@
+// casting enums
+enum days { SUN, MON, TUES };
+
+void main() {
+     int x;
+     printi(x); // 0
+     int y = 3;
+     printi(y); // 3
+     enum days d; // init to SUN
+     printi((int)d); // 0
+     enum days dd = MON;
+     printi((int)dd); // 1
+     x = (int)MON;
+     printi(x); // 1
+     int s;
+     s = (int)dd;
+     printi(s); // 1
+     x = (int)d;
+     printi(x); // 0
+     d = TUES;
+     printi((int)d); // 2
+     printi(x); // 0, unchanged by changing d
+     x = (int)d;
+     printi(x); // 2
+     y = (int)TUES;
+     printi(y); // 2
+     y = (int)dd;
+     printi(y); // 1
+     int z = (int)d;
+     printi(z); // 2
+     int w = (int) SUN;
+     printi(w); // 0
+
+     enum days zero;
+     printi((int)zero); // 0
+     w = 3 / (int)zero; // Error division by zero
+ }

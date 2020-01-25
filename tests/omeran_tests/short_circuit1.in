@@ -1,0 +1,14 @@
+bool f(){
+	print("Shalom, shalom - ");
+	return false;
+}
+
+bool g(){
+	print("ve-ein shalom.");
+	return true;
+}
+
+void main(){
+	bool a = f() and (g() or f());
+	bool c = g() or (true or (false and f()));
+}

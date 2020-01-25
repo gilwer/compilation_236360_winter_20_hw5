@@ -8,7 +8,7 @@ test_to_skip=('')
 path="tests"
 sub_folders=("Staff" "Spring18" "Dean/Artihmetics" "Dean/basic_expression_tests" "Dean/basic_tests_last_semester" \
 "Dean/func_tests" "Dean/If_tests" "Dean/more_tests" "Dean/vars_tests" "Dean/LASTSEM" "Dean/booleans_tests" \
-"Dean/overflow_tests" "Dean/while_tests" "Self")
+"Dean/overflow_tests" "Dean/while_tests" "Self" "Whatsapp" "omeran_tests")
 
 # $1: array
 # $2: value

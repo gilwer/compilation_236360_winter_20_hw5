@@ -1,0 +1,36 @@
+// calling functions as expressions
+enum days { SUN, MON, TUES };
+
+int foo(int a) {
+  return a;
+}
+
+int kaki(int a, int bb, int c) {
+  int x = a + bb + c;
+  return x*2;
+}
+
+void bar() {
+  return;
+}
+
+void baz() {
+  int t;
+}
+
+void main() {
+  int x = 3;
+  printi(x); // 3
+  x = kaki(foo(3), x, 4);
+  printi(x); // 20
+  int y = foo(2);
+  printi(y); // 2
+  int z = foo(x);
+  printi(z); // 20
+  z = foo(44+33);
+  printi(z); // 77
+  y = foo (x * 7);
+  printi(y); // 140
+  bar();
+  baz();
+}

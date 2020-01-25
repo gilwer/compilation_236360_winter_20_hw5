@@ -1,0 +1,22 @@
+// function call change arg
+enum days { SUN, MON, TUES };
+
+int fooone(int a) {
+  // return SUN; // mismatch!
+  return 1b;
+}
+
+int footwo(int a) {
+  enum days z = MON;
+  // return z; // mismatch!
+  return 3;
+}
+
+int foothree(int a) {
+  return (int)TUES;
+}
+
+void main() {
+  printi(foothree(4)); // 2
+  return;
+}

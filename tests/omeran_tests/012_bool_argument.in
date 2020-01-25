@@ -1,0 +1,11 @@
+// use bool as func arg
+
+void takesTwoBool(bool x, bool y) {
+    if (x or y) {
+      print("at least one is true!");
+    }
+}
+
+void main() {
+    takesTwoBool(3<4 and 4<5, true); // at least one is true!
+}

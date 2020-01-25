@@ -1,0 +1,10 @@
+bool predicate(){
+    return true;
+}
+
+
+void main(){
+    if(predicate()){
+        print("Success");
+    }
+}

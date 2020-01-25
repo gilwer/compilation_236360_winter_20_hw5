@@ -1,0 +1,57 @@
+// function call change arg
+enum days { SUN, MON, TUES };
+
+void foo(int a) {
+  a = a + 2;
+  print("in foo a is");
+  printi(a);
+}
+
+void bar(int bb) {
+  bb = 4;
+  print("in bar bb is");
+  printi(bb);
+}
+
+int identity(int i) {
+  return i;
+}
+
+void main() {
+  // with enum var
+  enum days z;
+  printi((int)z); // 0
+  foo((int)z); // in foo a is 2
+  printi((int)z); // 0
+  bar((int)z); // in bar bb is 4
+  printi((int)z); // 0
+  
+  // with enum value  
+  printi((int)MON); // 1
+  foo((int)MON); // in foo a is 3
+  printi((int)MON); // 1
+  bar((int)MON); // in bar bb is 4
+  printi((int)MON); // 1
+  
+  // with literal
+  printi(5); // 5
+  foo(5); // in foo a is 7
+  printi(5); // 5
+  bar(5); // in bar bb is 4
+  printi(5); // 5
+  
+  // with int var
+  int w = 2 + 4 / 3;
+  printi(w); // 3
+  foo(w); // in foo a is 5
+  printi(w); // 3
+  bar(w); // in bar bb is 4
+  printi(w); // 3
+  
+  // with func call
+  printi(identity(77)); // 77
+  foo(identity(77)); // in foo a is 79
+  printi(identity(77)); // 77
+  bar(identity(77)); // in bar bb is 4
+  printi(identity(77)); // 77
+}

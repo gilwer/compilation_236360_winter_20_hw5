@@ -1,0 +1,17 @@
+enum days { SUN, MON, TUES };
+
+int foo() {
+    enum months { JAN, FEB, MAR };
+    if ((int)JAN < (int)FEB) {
+        return 5*(int)MAR; // returns 10
+    }
+    return (int)MAR; // returns 2
+}
+
+void main() {
+    int i;
+    while (i < foo()) {
+        i = i + 1;
+        print("should print ten times");
+    }
+}

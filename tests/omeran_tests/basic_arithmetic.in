@@ -1,0 +1,15 @@
+// basic arithmetic
+void main() {
+    int x = 1;
+    printi(x); // 1
+    int y = 1 + 2 + 3;
+    printi(y); // 6
+    int z = 1 + 2 * 3;
+    printi(z); // 7
+    int t = (1 + 2) * 3;
+    printi(t); // 9
+    int s = 1 + (2 * 3);
+    printi(s); // 7
+    int w = x + y - 2;
+    printi(w); // 5
+}

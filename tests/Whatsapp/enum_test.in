@@ -1,0 +1,46 @@
+enum days {SUNDAY, MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY};
+enum months {JANUARY, FEBRUARY, MARCH, APRIL, MAY, JUNE, JULY, AUGUST, SEPTEMBER, OCTOBER, NOVEMBER, DECEMBER};
+
+int getDayNum(enum days d) {
+    return (int)d;
+}
+
+bool beforeApril(enum months m) {
+    enum numbers {ONE, TWO, THREE, FOUR};
+    return true and true and (int)m < (int)FOUR and true;
+}
+
+void isEqual(enum months m, byte n) {
+    printi((int)m);
+    if ((int)m == n)
+        print("... is equal to ...");
+    else
+        print("... is different from ...");
+    printi(n);
+}
+
+void main() {
+    enum days x = WEDNESDAY;
+    enum days y = FRIDAY;
+    if ((int)x == (int)y)
+        print("time has collapsed");
+    else
+        print("Wednesday is not Friday");
+
+    enum months z = JANUARY;
+    if ((int)x != (int)z) {
+        printi((int)x);
+    }
+
+    printi(getDayNum(FRIDAY));
+
+    bool isBeforeApril = beforeApril(MARCH);
+    if (isBeforeApril)
+        print("March is before April");
+    isBeforeApril = beforeApril(MAY);
+    if (isBeforeApril)
+        print("May is before April");
+
+    enum months zz = z;
+    isEqual(zz, 2b);
+}

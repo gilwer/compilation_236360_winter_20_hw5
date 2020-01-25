@@ -1,0 +1,26 @@
+// nested calls, change variables and arguments
+enum days { SUN, MON, TUES };
+
+void foo(int a) {
+  a = a + 1;
+  print("in foo a is");
+  printi(a);
+}
+
+void bar(int kk) {
+  print("in bar kk is");
+  printi(kk);
+  foo(kk);
+  print("after calling foo in bar with kk");
+  printi(kk);
+  int bb = 3;
+  print("in bar bb is");
+  printi(bb);
+  foo(bb);
+  print("after calling foo in bar with bb");
+  printi(bb);
+}
+
+void main() {
+  bar(7); // 7, 8, 7, 3, 4 ,3
+}

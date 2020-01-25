@@ -1,0 +1,35 @@
+// calling functions as expressions
+enum days { SUN, MON, TUES };
+
+enum ways { BUN, TON, FUSE };
+
+int foo(enum days a) {
+  return (int)a;
+}
+
+int shlomo(enum ways w) {
+  return (int)w;
+}
+
+int kaki(int a, enum days bb, enum ways c) {
+  int x = a + (int)bb + (int)c;
+  return x*2;
+}
+
+void bar() {
+  return;
+}
+
+void baz() {
+  int t;
+}
+
+void main() {
+  enum days x;
+  enum ways y = TON;
+  printi((int)x); // 0
+  printi((int)y); // 1
+  int z = kaki(foo(TUES), x, y);
+  printi(z); // 6
+  printi(kaki(7, TUES, BUN)); // 18
+}

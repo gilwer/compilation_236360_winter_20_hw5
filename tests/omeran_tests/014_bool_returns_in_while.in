@@ -1,0 +1,13 @@
+int bar(){
+    print("bar");
+    return 7;
+}
+
+
+void main(){
+    int i;
+    while (bar() > i){
+        print("Giri");
+        i = i + 1;
+    }
+}

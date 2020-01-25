@@ -1,0 +1,14 @@
+// recursive calls
+enum days { SUN, MON, TUES };
+
+void foo(int a) {
+  if (a > 0) {
+    print("called foo with");
+    printi(a);
+    foo (a-1);
+  }
+}
+
+void main() {
+  foo(4);
+}

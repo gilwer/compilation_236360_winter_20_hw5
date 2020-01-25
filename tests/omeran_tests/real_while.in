@@ -1,0 +1,13 @@
+void main(){
+    bool y = false and true;
+    int x = 3;
+    if(not y){
+        print("Meine");
+    }
+    while (false){
+        x = 2;          // Causes seg-fault - could it be looking in wrong scope or something?
+        // y = true;    // Uncomment this for the same error
+        print(" beide Schwestern");
+    }
+    printi(1882);
+}

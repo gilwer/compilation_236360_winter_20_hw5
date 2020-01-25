@@ -1,0 +1,12 @@
+in bar kk is
+7
+in foo a is
+8
+after calling foo in bar with kk
+7
+in bar bb is
+3
+in foo a is
+4
+after calling foo in bar with bb
+3

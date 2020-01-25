@@ -1,0 +1,12 @@
+// calling functions like printi
+enum days { SUN, MON, TUES };
+
+void main() {
+  int x = 3;
+  printi(x); // 3
+  int y;
+  printi(y); // 0
+  printi(44+22); // 66
+  printi((int)MON); // 1
+  printi((int)MON + (int)TUES); // 3
+}

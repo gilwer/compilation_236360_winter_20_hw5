@@ -1,0 +1,16 @@
+// bytes and mul/div
+void main() {
+     byte x = 2b;
+     printi(x); // 2
+     byte y = 3b;
+     printi(y); // 3
+     y = y / x;
+     printi(y); // 1
+     int z = x * 7;
+     printi(z); // 14
+     int w = z / 3b;
+     printi(w); // 4
+
+     byte zero;
+     printi(zero); // 0
+ }

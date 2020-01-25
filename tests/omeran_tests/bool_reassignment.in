@@ -1,0 +1,7 @@
+void main() {
+	bool e1;
+	e1 = 3==1;
+    if (not e1){
+        print("Erfolg!");
+    }
+}

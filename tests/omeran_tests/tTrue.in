@@ -1,0 +1,8 @@
+// basic assignments with variables and literals
+void main() {
+    bool myBool = false;
+    if (not myBool){
+        int x;
+        printi(1917);
+    }
+ }

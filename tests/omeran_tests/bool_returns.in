@@ -1,0 +1,18 @@
+
+bool foo(){
+    print("Haji");
+    bool x = true;
+    return true;
+}
+
+bool bar(){
+    return foo();
+}
+
+
+void main(){
+    foo();
+    if (bar()){
+        print("Giri");
+    }
+}

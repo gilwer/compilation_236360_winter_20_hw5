@@ -1,0 +1,22 @@
+int mccarthy(int n){
+	if (n > 100){
+		return n - 10;
+	}
+	else {
+		return mccarthy(mccarthy(n + 11));
+	}
+}
+
+void main(){
+	if (mccarthy(120) == 110){
+		print("Mccarthy was right!");
+	}
+	else {
+		print("Mccarthy was wrong...");
+	}
+
+	if (mccarthy(50) == 91){
+		print("Mccarthy was right again");
+	}
+	print("Yea..");
+}

@@ -1,0 +1,15 @@
+// basic assignments with variables and literals
+void main() {
+     int x = 55;
+     printi(x); // 55
+     int y;
+     printi(y); // 0
+     y = x + 66;
+     printi(y); // 121
+     y = x + y;
+     printi(y); // 176
+     int z = x + 99;
+     printi(z); // 154
+     int w = y + x;
+     printi(w); // 231
+ }

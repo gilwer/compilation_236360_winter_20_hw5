@@ -1,0 +1,16 @@
+void foo(int a, int bb, int c, int d, int e, int f) {
+    print("six parameters for foo");
+    printi(a+bb+c+d+e+f);
+    return;
+}
+
+void bar(int a, int bb, int c, int d, int e, int f, int g) {
+            print("seven parameters for bar");
+            printi(a+bb+c+d+e+f+g);
+            return;
+        }
+
+void main() {
+    foo(1,2,3,4,5,6);
+    bar(1,2,3,4,5,6,7);
+}

@@ -1,0 +1,13 @@
+void main(){
+    int i;
+    while (7 > i){
+        print("starting while, i is");
+        printi(i);
+        i = i + 1;
+        if (i/2 == (i-1)/2) {
+            print("i is odd");
+            printi(i);
+            continue;
+        }
+    }
+}

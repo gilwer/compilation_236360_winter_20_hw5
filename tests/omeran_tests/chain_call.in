@@ -1,0 +1,27 @@
+bool d(){
+	print("is slavery");
+	return true;
+}
+
+bool e(){
+	print("freedom");
+	return d();
+}
+
+
+bool f(){
+	print("is peace");
+	return e();
+}
+
+bool g(){
+	print("War");
+	return f();
+}
+
+void main(){
+	bool x = false;
+	if (false or x or g()){
+		print("--George Orwell");
+	}
+}

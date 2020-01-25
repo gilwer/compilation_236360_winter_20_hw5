@@ -1,0 +1,24 @@
+enum Days {DOMINGO, LUNES,MARTES, MIERCOLES, JUEVES,VIERNES,SABADO};
+enum StudyDays {STUDYDAY, ANOTHERSTUDYDAY};
+
+int foof(enum Days d,int z,enum StudyDays sd) {
+	printi(42);
+	return (int)(d)+1;
+}
+
+int foo(int x, int y, int z) {
+	return y;
+}
+int g(enum Days d){
+	return (int)d;
+}
+void main() {
+	enum Days d = DOMINGO;
+	int x = 10;
+	enum StudyDays sd = ANOTHERSTUDYDAY;
+	printi(foof(MARTES, foof(d, x, ANOTHERSTUDYDAY), sd));
+	printi(foo(x, foo(2, x, x) ,5));
+	printi((int)VIERNES);
+	printi(g(DOMINGO));
+	return;
+}
